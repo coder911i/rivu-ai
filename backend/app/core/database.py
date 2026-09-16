@@ -1,14 +1,15 @@
 """Async database engine and session management."""
 
 from typing import AsyncGenerator
+
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
-    AsyncSession,
     AsyncEngine,
-    create_async_engine,
+    AsyncSession,
     async_sessionmaker,
+    create_async_engine,
 )
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy import event, text
 import structlog
 
 from app.core.config import settings
@@ -25,7 +26,7 @@ class Base(DeclarativeBase):
 
 
 async def init_db() -> None:
-    """Initialize database engine and verify connection."""
+    """Initialize the async engine and verify the connection."""
     global _engine, _session_factory
 
     _engine = create_async_engine(
@@ -44,24 +45,29 @@ async def init_db() -> None:
         autoflush=False,
     )
 
-    # Verify connection
     async with _engine.begin() as conn:
         await conn.execute(text("SELECT 1"))
-    logger.info("database_initialized", url=settings.DATABASE_URL.split("@")[-1])
+
+    # Never log credentials; only log the host/database portion.
+    safe_db_target = settings.DATABASE_URL.split("@")[-1].split("?")[0]
+    logger.info("database_initialized", target=safe_db_target)
 
 
 async def close_db() -> None:
     """Dispose database engine."""
-    global _engine
+    global _engine, _session_factory
     if _engine:
         await _engine.dispose()
+        _engine = None
+        _session_factory = None
         logger.info("database_closed")
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    """FastAPI dependency that yields a database session."""
+    """FastAPI dependency that yields a transaction-scoped session."""
     if _session_factory is None:
         raise RuntimeError("Database not initialized. Call init_db() first.")
+
     async with _session_factory() as session:
         try:
             yield session
@@ -69,8 +75,6 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         except Exception:
             await session.rollback()
             raise
-        finally:
-            await session.close()
 
 
 def get_engine() -> AsyncEngine:
