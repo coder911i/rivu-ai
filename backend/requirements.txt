@@ -23,7 +23,7 @@ pyarrow==18.1.0
 chardet==5.2.0
 
 # ── Object Storage ────────────────────────────
-boto3==1.35.81
+boto3==1.35.36
 aioboto3==13.2.0
 
 # ── AI ────────────────────────────────────────
@@ -43,7 +43,6 @@ bleach==6.2.0
 pytest==8.3.4
 pytest-asyncio==0.24.0
 pytest-cov==6.0.0
-httpx==0.28.1
 factory-boy==3.3.1
 
 # ── Observability ─────────────────────────────
