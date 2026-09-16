@@ -27,7 +27,7 @@ class Base(DeclarativeBase):
 
 
 def _normalize_async_database_url(url: str) -> str:
-    """Ensure a PostgreSQL URL uses an asyncpg driver and drop psycopg SSL query options."""
+    """Ensure a PostgreSQL URL uses asyncpg and remove unsupported driver query args."""
     normalized = url.strip()
     if normalized.startswith("postgresql+asyncpg://"):
         pass
@@ -37,10 +37,11 @@ def _normalize_async_database_url(url: str) -> str:
         return normalized
 
     parsed = urlsplit(normalized)
-    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
-    # asyncpg does not accept SQLAlchemy/psycopg's sslmode query parameter.
-    # Neon requires TLS; asyncpg enables it explicitly below via connect_args.
-    query.pop("sslmode", None)
+    pairs = parse_qsl(parsed.query, keep_blank_values=True)
+    # asyncpg does not accept SQLAlchemy/psycopg query parameters such as
+    # sslmode/channel_binding. TLS is configured below via connect_args.
+    unsupported = {"sslmode", "channel_binding"}
+    query = [(key, value) for key, value in pairs if key not in unsupported]
     return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), ""))
 
 
