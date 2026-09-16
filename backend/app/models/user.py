@@ -31,8 +31,13 @@ class User(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
-    # Relationships
-    memberships: Mapped[list["Membership"]] = relationship(back_populates="user")
+    # Membership has another FK to users (invited_by), so explicitly bind
+    # this relationship to the member's user_id foreign key.
+    memberships: Mapped[list["Membership"]] = relationship(
+        "Membership",
+        foreign_keys="Membership.user_id",
+        back_populates="user",
+    )
     owned_orgs: Mapped[list["Organization"]] = relationship(
         "Organization", foreign_keys="Organization.owner_id", back_populates="owner"
     )
