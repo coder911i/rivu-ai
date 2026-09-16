@@ -1,17 +1,15 @@
-"""
-Rivu by WaterTing — FastAPI Application Entry Point
-"""
+"""Rivu by WaterTing — FastAPI application entry point."""
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import JSONResponse
-import structlog
 import time
 
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+import structlog
+
 from app.core.config import settings
-from app.core.database import init_db, close_db
+from app.core.database import close_db, init_db
 from app.core.logging import configure_logging
 from app.api.v1.router import api_router
 
@@ -21,7 +19,6 @@ logger = structlog.get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup and shutdown lifecycle."""
     logger.info("rivu_starting", version=settings.APP_VERSION, env=settings.APP_ENV)
     await init_db()
     logger.info("database_connected")
@@ -39,22 +36,28 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# ── Middleware ────────────────────────────────
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=settings.ALLOWED_ORIGINS_LIST,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
 
 @app.middleware("http")
-async def request_logging_middleware(request: Request, call_next):
-    """Log every request with timing."""
+async def security_headers_middleware(request: Request, call_next):
     start = time.perf_counter()
     response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; frame-ancestors 'none'; base-uri 'self'; "
+        "object-src 'none'; form-action 'self'"
+    )
+    response.headers["Cache-Control"] = "no-store" if request.url.path.startswith("/api/") else "public, max-age=60"
     duration_ms = (time.perf_counter() - start) * 1000
     logger.info(
         "http_request",
@@ -66,19 +69,6 @@ async def request_logging_middleware(request: Request, call_next):
     return response
 
 
-@app.middleware("http")
-async def security_headers_middleware(request: Request, call_next):
-    """Add security headers."""
-    response = await call_next(request)
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    return response
-
-
-# ── Global exception handler ──────────────────
-
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error("unhandled_exception", path=request.url.path, error=str(exc), exc_info=exc)
@@ -87,8 +77,6 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"detail": "Internal server error", "type": "internal_error"},
     )
 
-
-# ── Routes ────────────────────────────────────
 
 app.include_router(api_router, prefix="/api/v1")
 
@@ -109,5 +97,4 @@ async def root():
         "product": "Rivu by WaterTing",
         "tagline": "Turn messy data into production-ready intelligence.",
         "version": settings.APP_VERSION,
-        "docs": "/docs",
     }
