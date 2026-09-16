@@ -71,10 +71,13 @@ async def security_headers_middleware(request: Request, call_next):
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.error("unhandled_exception", path=request.url.path, error=str(exc), exc_info=exc)
+    logger.error("unhandled_exception", path=request.url.path, error=str(exc), exc_info=True)
+    detail = "Internal server error"
+    if settings.APP_ENV.lower() == "development" or settings.DEBUG:
+        detail = f"{type(exc).__name__}: {exc}"
     return JSONResponse(
         status_code=500,
-        content={"detail": "Internal server error", "type": "internal_error"},
+        content={"detail": detail, "type": "internal_error"},
     )
 
 
