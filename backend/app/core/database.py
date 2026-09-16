@@ -27,13 +27,21 @@ class Base(DeclarativeBase):
 
 
 def _normalize_async_database_url(url: str) -> str:
-    """Ensure a PostgreSQL URL uses an asyncpg driver for the async engine."""
+    """Ensure a PostgreSQL URL uses an asyncpg driver and drop psycopg SSL query options."""
     normalized = url.strip()
     if normalized.startswith("postgresql+asyncpg://"):
+        pass
+    elif normalized.startswith("postgresql://"):
+        normalized = "postgresql+asyncpg://" + normalized[len("postgresql://") :]
+    else:
         return normalized
-    if normalized.startswith("postgresql://"):
-        return "postgresql+asyncpg://" + normalized[len("postgresql://") :]
-    return normalized
+
+    parsed = urlsplit(normalized)
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    # asyncpg does not accept SQLAlchemy/psycopg's sslmode query parameter.
+    # Neon requires TLS; asyncpg enables it explicitly below via connect_args.
+    query.pop("sslmode", None)
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), ""))
 
 
 def _safe_database_target(url: str) -> str:
@@ -68,6 +76,7 @@ async def init_db() -> None:
         max_overflow=settings.DB_MAX_OVERFLOW,
         pool_timeout=settings.DB_POOL_TIMEOUT,
         pool_pre_ping=True,
+        connect_args={"ssl": "require"},
         echo=settings.DEBUG,
     )
 
