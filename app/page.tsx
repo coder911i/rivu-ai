@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowDownRight, ArrowUpRight, Check, ChevronDown, ChevronRight, Database, FileCheck2, Layers3, Menu, Play, Sparkles, X, Zap } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, ChevronDown, ChevronRight, Database, FileCheck2, Layers3, Menu, Sparkles, X } from "lucide-react";
 
 const video = "https://s3-us-west-2.amazonaws.com/coverr/mp4/Busy.mp4";
 
