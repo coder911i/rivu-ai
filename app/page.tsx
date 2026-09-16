@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowDownRight, ArrowUpRight, ChevronDown, ChevronRight, Database, FileCheck2, Layers3, Menu, Sparkles, X } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Check, ChevronDown, ChevronRight, Database, FileCheck2, Layers3, Menu, Play, Sparkles, X, Zap } from "lucide-react";
 
 const video = "https://s3-us-west-2.amazonaws.com/coverr/mp4/Busy.mp4";
 
@@ -93,7 +93,7 @@ export default function Home() {
     </section>
 
     <section className="statement" id="capabilities">
-      <div className="statement-head"><div><div className="tiny-label dark"><b/> THE REFINERY</div><h2>Designed for today's data,<br/><span>beyond legacy workflows.</span></h2></div><p>Rivu is the intelligence layer between chaotic sources and the systems your team depends on.</p></div>
+      <div className="statement-head"><div><div className="tiny-label dark"><b/> THE REFINERY</div><h2>Designed for today&apos;s data,<br/><span>beyond legacy workflows.</span></h2></div><p>Rivu is the intelligence layer between chaotic sources and the systems your team depends on.</p></div>
       <div className="cap-grid">{capabilities.map(({ n, title, text, icon: Icon }) => <article className="cap" key={n}><div className="cap-icon"><Icon size={22}/></div><small>{n}</small><h3>{title}</h3><p>{text}</p><ArrowUpRight className="cap-arrow" size={17}/></article>)}</div>
     </section>
 
