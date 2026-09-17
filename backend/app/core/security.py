@@ -1,10 +1,10 @@
 """JWT-based authentication and password hashing utilities."""
 
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Any
+from typing import Any
 from uuid import UUID
 
-from jose import jwt, JWTError
+from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -16,14 +16,12 @@ from app.core.database import get_session
 
 logger = structlog.get_logger(__name__)
 
-# Password hashing
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Password hashing. PBKDF2-SHA256 avoids the bcrypt/passlib backend compatibility
+# issue where newer bcrypt releases can reject otherwise valid short passwords.
+_pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
-# OAuth2 scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
-
-# ── Password ─────────────────────────────────
 
 def hash_password(password: str) -> str:
     return _pwd_context.hash(password)
@@ -32,8 +30,6 @@ def hash_password(password: str) -> str:
 def verify_password(plain: str, hashed: str) -> bool:
     return _pwd_context.verify(plain, hashed)
 
-
-# ── JWT Tokens ────────────────────────────────
 
 def create_access_token(subject: str | UUID, extra: dict[str, Any] | None = None) -> str:
     now = datetime.now(timezone.utc)
@@ -62,8 +58,7 @@ def create_refresh_token(subject: str | UUID) -> str:
 
 def decode_token(token: str) -> dict[str, Any]:
     try:
-        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
-        return payload
+        return jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
     except JWTError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -71,8 +66,6 @@ def decode_token(token: str) -> dict[str, Any]:
             headers={"WWW-Authenticate": "Bearer"},
         ) from e
 
-
-# ── Current user dependency ───────────────────
 
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
@@ -101,7 +94,5 @@ async def get_current_user(
     return user
 
 
-async def get_current_active_user(
-    current_user=Depends(get_current_user),
-):
+async def get_current_active_user(current_user=Depends(get_current_user)):
     return current_user
