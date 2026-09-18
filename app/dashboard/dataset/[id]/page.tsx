@@ -3,6 +3,7 @@ import { useCallback, useEffect,useState, type ReactNode } from "react";
 import { ArrowLeft, BrainCircuit, CheckCircle2, Download, Loader2, ShieldCheck, Sparkles, Table2, WandSparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import styles from "./dataset.module.css";
+import { authFetch } from "../../../../lib/api";
 const API=process.env.NEXT_PUBLIC_API_URL||"http://127.0.0.1:8000/api/v1";
 const authHeaders=()=>({Authorization:"Bearer "+(typeof window!=="undefined"?localStorage.getItem("rivu_access_token")||"":"")});
 
@@ -21,8 +22,8 @@ export default function DatasetPage({params}:{params:{id:string}}){
  const load = useCallback(async () => {
   try{
     const [p,q]=await Promise.all([
-      fetch(API+"/datasets/"+params.id+"/profile",{headers:authHeaders()}),
-      fetch(API+"/datasets/"+params.id+"/quality",{headers:authHeaders()})
+      authFetch("/datasets/"+params.id+"/profile",{headers:authHeaders()}),
+      authFetch("/datasets/"+params.id+"/quality",{headers:authHeaders()})
     ]);
     if(p.status===401||q.status===401){router.push("/login");return}
     if(p.status===202||q.status===202){
@@ -77,7 +78,7 @@ export default function DatasetPage({params}:{params:{id:string}}){
   if (!plan?.id) return;
   setBusy(true); setError("");
   try {
-    const r = await fetch(API + "/datasets/" + params.id + "/transform/preview", {
+    const r = await authFetch("/datasets/" + params.id + "/transform/preview", {
       method: "POST", headers: {...authHeaders(), "Content-Type":"application/json"},
       body: JSON.stringify({plan_id: plan.id})
     });
@@ -93,7 +94,7 @@ export default function DatasetPage({params}:{params:{id:string}}){
   if (!plan?.id || !window.confirm("Execute this approved refinement plan and create a new dataset version?")) return;
   setRunning(true); setError("");
   try {
-    const r = await fetch(API + "/datasets/" + params.id + "/transform/execute", {
+    const r = await authFetch("/datasets/" + params.id + "/transform/execute", {
       method: "POST", headers: {...authHeaders(), "Content-Type":"application/json"},
       body: JSON.stringify({plan_id: plan.id})
     });
@@ -108,7 +109,7 @@ export default function DatasetPage({params}:{params:{id:string}}){
 
  async function report() {
   try {
-    const response = await fetch(API + "/reports/" + params.id + "/json", { headers: authHeaders() });
+    const response = await authFetch("/reports/" + params.id + "/json", { headers: authHeaders() });
     if (!response.ok) throw new Error("Could not generate report");
     const blob = await response.blob();
     const url = URL.createObjectURL(blob);
