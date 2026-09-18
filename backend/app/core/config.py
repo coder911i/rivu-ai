@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     S3_BUCKET: str = "rivu-datasets"
     S3_REGION: str = "us-east-1"
     S3_USE_SSL: bool = False
+    S3_FORCE_PATH_STYLE: bool = True
+    AUTO_CREATE_SCHEMA: bool = true
 
     MAX_UPLOAD_SIZE_MB: int = 500
     MAX_PROFILE_SAMPLE_ROWS: int = 100_000
@@ -72,6 +74,14 @@ class Settings(BaseSettings):
                 raise RuntimeError("DEBUG must be false in production")
             if self.JWT_SECRET.startswith("CHANGE_THIS") or len(self.JWT_SECRET) < 32:
                 raise RuntimeError("JWT_SECRET must be a long random secret in production")
+            if self.AUTO_CREATE_SCHEMA:
+                raise RuntimeError("AUTO_CREATE_SCHEMA must be false in production; use Alembic migrations")
+            if not self.S3_USE_SSL:
+                raise RuntimeError("S3_USE_SSL must be true in production")
+            if not self.S3_ENDPOINT.lower().startswith("https://"):
+                raise RuntimeError("S3_ENDPOINT must use HTTPS in production")
+            if self.S3_ACCESS_KEY in {"", "minioadmin"} or self.S3_SECRET_KEY in {"", "minioadmin"}:
+                raise RuntimeError("Production S3 credentials must not use development defaults")
 
 
 @lru_cache()
