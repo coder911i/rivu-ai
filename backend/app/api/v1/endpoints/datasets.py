@@ -16,6 +16,7 @@ import polars as pl
 import structlog
 
 from app.core.database import get_session
+from app.core.config import settings
 from app.core.security import get_current_user
 from app.core.storage import get_storage, compute_checksum, build_storage_key
 from app.core.exceptions import ValidationError, http_not_found
@@ -67,7 +68,7 @@ async def upload_dataset(
 
     # Read with a hard upper bound so an oversized multipart body cannot consume
     # unbounded application memory before validation.
-    max_bytes = 500 * 1024 * 1024
+    max_bytes = settings.MAX_UPLOAD_SIZE_BYTES
     chunks = []
     total = 0
     while True:
@@ -78,7 +79,7 @@ async def upload_dataset(
         if total > max_bytes:
             raise HTTPException(
                 status_code=413,
-                detail={"message": "File exceeds the 500MB upload limit", "type": "file_too_large"},
+                detail={"message": f"File exceeds the {settings.MAX_UPLOAD_SIZE_MB}MB upload limit", "type": "file_too_large"},
             )
         chunks.append(chunk)
     raw_bytes = b"".join(chunks)
