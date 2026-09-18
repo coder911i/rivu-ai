@@ -21,7 +21,7 @@ async def process_dataset_async(
     version_id: str,
     data_source_id: str,
     org_id: str,
-    raw_bytes: bytes,
+    raw_bytes: bytes | None,
     file_format: str,
 ):
     """Full processing pipeline run in background."""
@@ -47,6 +47,11 @@ async def process_dataset_async(
 
             # ── Parse file ────────────────────────────
             try:
+                if raw_bytes is None:
+                    from app.core.storage import get_storage
+                    version_result = await db.execute(select(DatasetVersion).where(DatasetVersion.id == version_id))
+                    version = version_result.scalar_one()
+                    raw_bytes = await get_storage().download_file(version.storage_key)
                 df, parse_meta = parse_to_polars(raw_bytes, file_format, "upload")
             except Exception as e:
                 await _fail_job(db, job, f"Failed to parse file: {e}")
