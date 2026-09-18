@@ -31,7 +31,7 @@ class ExecutePlanRequest(BaseModel):
 async def _org(user: User, db: AsyncSession) -> UUID:
     result = await db.execute(
         select(Membership.organization_id).where(
-            Membership.user_id == user.id, Membership.role == "owner"
+            Membership.user_id == user.id
         ).limit(1)
     )
     org = result.scalar_one_or_none()
