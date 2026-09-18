@@ -88,14 +88,16 @@ async def init_db() -> None:
         autoflush=False,
     )
 
-    # Import every model before create_all so all declarative tables and enums
-    # are registered on Base.metadata. This is a bootstrap mechanism for the
-    # current project; future schema changes should use versioned migrations.
+    # Import every model so Alembic/metadata can see all tables.
     import app.models  # noqa: F401
 
     async with _engine.begin() as conn:
         await conn.execute(text("SELECT 1"))
-        await conn.run_sync(Base.metadata.create_all)
+        if settings.AUTO_CREATE_SCHEMA:
+            # Development-only bootstrap. Production must use Alembic migrations.
+            await conn.run_sync(Base.metadata.create_all)
+        else:
+            logger.info("database_schema_migrations_required", mode="production")
 
     logger.info("database_initialized", target=_safe_database_target(database_url))
 
