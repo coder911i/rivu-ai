@@ -15,7 +15,9 @@ logger = structlog.get_logger(__name__)
 
 def _get_boto_config():
     return {
-        "endpoint_url": settings.S3_ENDPOINT if not settings.S3_USE_SSL else None,
+        "endpoint_url": settings.S3_ENDPOINT,
+        "use_ssl": settings.S3_USE_SSL,
+        "config": boto3.session.Config(signature_version="s3v4", s3={"addressing_style": "path" if settings.S3_FORCE_PATH_STYLE else "auto"}),
         "aws_access_key_id": settings.S3_ACCESS_KEY,
         "aws_secret_access_key": settings.S3_SECRET_KEY,
         "region_name": settings.S3_REGION,
@@ -64,7 +66,7 @@ class StorageClient:
                 logger.error("storage_download_failed", key=key, error=str(e))
                 raise
 
-    async def get_download_url(self, key: str, expires_in: int = 3600) -> str:
+    async def get_download_url(self, key: str, expires_in: int = 300) -> str:
         """Generate a presigned download URL."""
         async with self._session.client("s3", **_get_boto_config()) as s3:
             url = await s3.generate_presigned_url(
