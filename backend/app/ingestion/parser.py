@@ -12,7 +12,7 @@ from app.core.exceptions import ValidationError
 
 logger = structlog.get_logger(__name__)
 
-ALLOWED_EXTENSIONS = {".csv", ".xlsx", ".xls", ".json"}
+ALLOWED_EXTENSIONS = {".csv", ".xlsx", ".xls", ".json", ".parquet"}
 ALLOWED_MIMETYPES = {
     "text/csv",
     "application/csv",
@@ -79,26 +79,19 @@ def parse_to_polars(data: bytes, file_format: str, filename: str) -> Tuple[pl.Da
         except Exception as e:
             raise ValidationError(f"Failed to parse CSV: {e}")
 
-    elif file_format == "xlsx":
+    elif file_format in ("xlsx", "xls"):
         try:
-            import openpyxl
-            workbook = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
-            sheet = workbook.active
-            if sheet is None:
-                raise ValidationError("Excel file has no active sheet")
-
-            rows = list(sheet.iter_rows(values_only=True))
-            if not rows:
-                raise ValidationError("Excel file is empty")
-
-            headers = [str(h) if h is not None else f"col_{i}" for i, h in enumerate(rows[0])]
-            data_rows = [
-                {headers[j]: cell for j, cell in enumerate(row)}
-                for row in rows[1:]
-            ]
-            df = pl.DataFrame(data_rows, infer_schema_length=10000)
+            import pandas as pd
+            frame = pd.read_excel(io.BytesIO(data), engine="openpyxl" if file_format == "xlsx" else None)
+            df = pl.from_pandas(frame)
         except Exception as e:
             raise ValidationError(f"Failed to parse Excel file: {e}")
+
+    elif file_format == "parquet":
+        try:
+            df = pl.read_parquet(io.BytesIO(data))
+        except Exception as e:
+            raise ValidationError(f"Failed to parse Parquet file: {e}")
 
     elif file_format == "json":
         try:
