@@ -115,7 +115,7 @@ export default function DatasetPage({params}:{params:{id:string}}){
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "rivu-report-" + params.id + ".json";
+    a.download = "rivu-report-" + params.id + ".pdf";
     a.click();
     URL.revokeObjectURL(url);
   } catch (error) {
