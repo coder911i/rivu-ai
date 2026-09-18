@@ -2,6 +2,7 @@
 import { ChangeEvent, useCallback, useEffect, useState, type ReactNode } from "react";
 import { Activity, ArrowUpRight, Database, FileText, FolderPlus, LogOut, Plus, RefreshCw, ShieldCheck, Sparkles, UploadCloud, X } from "lucide-react";
 import styles from "./dashboard.module.css";
+import { authFetch } from "../../lib/api";
 
 const API=process.env.NEXT_PUBLIC_API_URL||"http://127.0.0.1:8000/api/v1";
 type Project={id:string;name:string;description?:string;dataset_count:number;color:string};
@@ -13,17 +14,17 @@ export default function Dashboard(){
  const selectProject = useCallback(async (p:Project) => {
   setSelected(p);
   try{
-    const r=await fetch(API+"/projects/"+p.id,{headers:authHeaders()});
+    const r=await authFetch("/projects/"+p.id,{headers:authHeaders()});
     if(r.status===401){location.href="/login";return}
     const d=await r.json();
     if(!r.ok) throw new Error(d.detail?.message||d.detail||"Could not load project");
     setDatasets(d.datasets||[]);
   }catch(e){setError(e instanceof Error?e.message:"Could not load project.")}
  }, []);
- async function load(){setLoading(true);try{const r=await fetch(API+"/projects/",{headers:authHeaders()});if(r.status===401){location.href="/login";return}const d=await r.json();setProjects(d.projects||[]);if(!selected&&d.projects?.[0])selectProject(d.projects[0]);}catch{setError("Could not reach Rivu API.")}finally{setLoading(false)}}
- useEffect(()=>{let cancelled=false;async function loadInitial(){try{const r=await fetch(API+"/projects/",{headers:authHeaders()});if(r.status===401){location.href="/login";return}const d=await r.json();if(cancelled)return;const list:Project[]=d.projects||[];setProjects(list);const first=list[0];if(first){setSelected(first);const detail=await fetch(API+"/projects/"+first.id,{headers:authHeaders()});if(detail.status===401){location.href="/login";return}const projectData=await detail.json();if(!cancelled)setDatasets(projectData.datasets||[])}}catch{if(!cancelled)setError("Could not reach Rivu API.")}finally{if(!cancelled)setLoading(false)}}void loadInitial();return()=>{cancelled=true}},[]);
- async function create(){if(!name.trim())return;const r=await fetch(API+"/projects/",{method:"POST",headers:{...authHeaders(),"Content-Type":"application/json"},body:JSON.stringify({name})});if(r.ok){setName("");setShowNew(false);await load()}else{const d=await r.json().catch(()=>({}));setError(d.detail?.message||d.detail||"Project could not be created.")}}
- async function upload(e:ChangeEvent<HTMLInputElement>){const f=e.target.files?.[0];if(!f||!selected)return;setUploading(true);setMessage("Uploading and profiling…");const fd=new FormData();fd.append("file",f);fd.append("name",f.name.replace(/\.[^.]+$/,""));try{const r=await fetch(API+"/datasets/projects/"+selected.id+"/upload",{method:"POST",headers:authHeaders(),body:fd});const d=await r.json();if(!r.ok)throw new Error(d.detail?.message||d.detail||"Upload failed");setMessage("Uploaded. Rivu is profiling the dataset…");
+ async function load(){setLoading(true);try{const r=await authFetch("/projects/",{headers:authHeaders()});if(r.status===401){location.href="/login";return}const d=await r.json();setProjects(d.projects||[]);if(!selected&&d.projects?.[0])selectProject(d.projects[0]);}catch{setError("Could not reach Rivu API.")}finally{setLoading(false)}}
+ useEffect(()=>{let cancelled=false;async function loadInitial(){try{const r=await authFetch("/projects/",{headers:authHeaders()});if(r.status===401){location.href="/login";return}const d=await r.json();if(cancelled)return;const list:Project[]=d.projects||[];setProjects(list);const first=list[0];if(first){setSelected(first);const detail=await authFetch("/projects/"+first.id,{headers:authHeaders()});if(detail.status===401){location.href="/login";return}const projectData=await detail.json();if(!cancelled)setDatasets(projectData.datasets||[])}}catch{if(!cancelled)setError("Could not reach Rivu API.")}finally{if(!cancelled)setLoading(false)}}void loadInitial();return()=>{cancelled=true}},[]);
+ async function create(){if(!name.trim())return;const r=await authFetch("/projects/",{method:"POST",headers:{...authHeaders(),"Content-Type":"application/json"},body:JSON.stringify({name})});if(r.ok){setName("");setShowNew(false);await load()}else{const d=await r.json().catch(()=>({}));setError(d.detail?.message||d.detail||"Project could not be created.")}}
+ async function upload(e:ChangeEvent<HTMLInputElement>){const f=e.target.files?.[0];if(!f||!selected)return;setUploading(true);setMessage("Uploading and profiling…");const fd=new FormData();fd.append("file",f);fd.append("name",f.name.replace(/\.[^.]+$/,""));try{const r=await authFetch("/datasets/projects/"+selected.id+"/upload",{method:"POST",headers:authHeaders(),body:fd});const d=await r.json();if(!r.ok)throw new Error(d.detail?.message||d.detail||"Upload failed");setMessage("Uploaded. Rivu is profiling the dataset…");
     await selectProject(selected);
     // Refresh while the background profiler is running so the UI reflects the real status.
     let attempts=0;
