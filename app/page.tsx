@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowDownRight, ArrowUpRight, Check, ChevronDown, ChevronRight, Database, FileCheck2, Layers3, Menu, Play, Sparkles, X, Zap } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, ChevronDown, ChevronRight, Database, FileCheck2, Layers3, Menu, Sparkles, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 const video = "https://s3-us-west-2.amazonaws.com/coverr/mp4/Busy.mp4";
 
@@ -47,6 +48,7 @@ function Cube() {
 }
 
 export default function Home() {
+  const router = useRouter();
   const [menu, setMenu] = useState(false);
   const [stage, setStage] = useState(0);
   const [motion, setMotion] = useState(true);
@@ -63,7 +65,7 @@ export default function Home() {
       </div>
       <div className="top-actions">
         <button className="motion-toggle" onClick={() => setMotion(!motion)}>{motion ? "PAUSE" : "PLAY"}</button>
-        <button className="dark-pill" onClick={() => window.location.href="/login"}>ENTER RIVU <ArrowUpRight size={13}/></button>
+        <button className="dark-pill" onClick={() => router.push("/login")}>ENTER RIVU <ArrowUpRight size={13}/></button>
         <button className="menu-btn" onClick={() => setMenu(!menu)}>{menu ? <X size={18}/> : <Menu size={18}/>}</button>
       </div>
     </nav>
