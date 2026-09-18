@@ -6,8 +6,33 @@ const API=process.env.NEXT_PUBLIC_API_URL||"http://127.0.0.1:8000/api/v1";
 export default function DatasetPage({params}:{params:{id:string}}){
  const [profile,setProfile]=useState<any>(null),[quality,setQuality]=useState<any>(null),[plan,setPlan]=useState<any>(null),[busy,setBusy]=useState(false),[preview,setPreview]=useState<any>(null),[running,setRunning]=useState(false),[error,setError]=useState("");
  const h=()=>({Authorization:"Bearer "+(typeof window!=="undefined"?localStorage.getItem("rivu_access_token")||"":"")});
- async function load(){try{const [p,q]=await Promise.all([fetch(API+"/datasets/"+params.id+"/profile",{headers:h()}),fetch(API+"/datasets/"+params.id+"/quality",{headers:h()})]);if(p.ok)setProfile(await p.json());if(q.ok)setQuality(await q.json());}catch{setError("Unable to load dataset intelligence.")}}
- useEffect(()=>{load()},[]);
+ async function load(){
+  try{
+    const [p,q]=await Promise.all([
+      fetch(API+"/datasets/"+params.id+"/profile",{headers:h()}),
+      fetch(API+"/datasets/"+params.id+"/quality",{headers:h()})
+    ]);
+    if(p.status===401||q.status===401){location.href="/login";return}
+    if(p.status===202||q.status===202){
+      setError("Rivu is still processing this dataset…");
+      return false;
+    }
+    if(!p.ok){const d=await p.json().catch(()=>({}));throw new Error(d.detail?.message||d.detail||"Profile unavailable")}
+    const pd=await p.json();
+    setProfile(pd);
+    if(q.ok)setQuality(await q.json());
+    return true;
+  }catch(e){setError(e instanceof Error?e.message:"Unable to load dataset intelligence.");return false}
+}
+ useEffect(()=>{
+  let cancelled=false;
+  const poll=async()=>{
+    const ready=await load();
+    if(!ready&&!cancelled)setTimeout(poll,1800);
+  };
+  poll();
+  return()=>{cancelled=true};
+},[]);
  async function ai() {
   setBusy(true);
   setError("");
@@ -24,7 +49,7 @@ export default function DatasetPage({params}:{params:{id:string}}){
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.detail || "AI plan failed");
+      throw new Error(data.detail?.message || data.detail || "AI plan failed");
     }
 
     setPlan(data);
@@ -45,7 +70,7 @@ export default function DatasetPage({params}:{params:{id:string}}){
       body: JSON.stringify({plan_id: plan.id})
     });
     const d = await r.json();
-    if (!r.ok) throw new Error(d.detail || "Preview failed");
+    if (!r.ok) throw new Error(d.detail?.message || d.detail || "Preview failed");
     setPreview(d);
   } catch (error) {
     setError(error instanceof Error ? error.message : "Preview failed");
@@ -61,7 +86,7 @@ export default function DatasetPage({params}:{params:{id:string}}){
       body: JSON.stringify({plan_id: plan.id})
     });
     const d = await r.json();
-    if (!r.ok) throw new Error(d.detail || "Transformation failed");
+    if (!r.ok) throw new Error(d.detail?.message || d.detail || "Transformation failed");
     setError("Transformation complete. New version v" + d.version.number + " created.");
     await load();
   } catch (error) {
