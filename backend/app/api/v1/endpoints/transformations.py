@@ -17,6 +17,10 @@ from app.models.user import User
 from app.models.organization import Membership
 from app.models.dataset import DataSource, DatasetVersion
 from app.models.transformation import TransformationPlan, TransformationRun
+from app.models.profile import DataProfile, ColumnProfile
+from app.models.quality import QualityReport, QualityIssue
+from app.profiler.engine import profile_dataframe
+from app.profiler.quality import calculate_quality_report
 from app.cleaning.engine import TransformationEngine, generate_transformation_preview
 from app.ingestion.parser import parse_to_polars
 
@@ -165,6 +169,74 @@ async def execute_plan(
         quality_delta=0,
     )
     db.add(new_version)
+    await db.flush()
+
+    # Re-profile and re-score the refined output for trustworthy version history.
+    profile_data = profile_dataframe(output_df, str(org))
+    new_profile = DataProfile(
+        dataset_version_id=new_version.id, organization_id=org,
+        row_count=profile_data["row_count"], column_count=profile_data["column_count"],
+        duplicate_row_count=profile_data["duplicate_row_count"],
+        duplicate_row_pct=profile_data["duplicate_row_pct"],
+        total_null_count=profile_data["total_null_count"],
+        total_null_pct=profile_data["total_null_pct"],
+        total_cell_count=profile_data["total_cell_count"],
+        has_header=True, sample_rows=profile_data["sample_rows"],
+        profiling_duration_ms=profile_data["profiling_duration_ms"],
+    )
+    db.add(new_profile)
+    await db.flush()
+    for col_data in profile_data["columns"]:
+        db.add(ColumnProfile(
+            data_profile_id=new_profile.id, dataset_version_id=new_version.id,
+            organization_id=org, column_index=col_data["column_index"],
+            column_name=col_data["column_name"], inferred_type=col_data["inferred_type"],
+            semantic_type=col_data["semantic_type"], null_count=col_data["null_count"],
+            null_pct=col_data["null_pct"], non_null_count=col_data["non_null_count"],
+            unique_count=col_data["unique_count"], uniqueness_pct=col_data["uniqueness_pct"],
+            is_constant=col_data["is_constant"], is_unique=col_data["is_unique"],
+            numeric_min=col_data.get("numeric_min"), numeric_max=col_data.get("numeric_max"),
+            numeric_mean=col_data.get("numeric_mean"), numeric_median=col_data.get("numeric_median"),
+            numeric_std_dev=col_data.get("numeric_std_dev"), numeric_q1=col_data.get("numeric_q1"),
+            numeric_q3=col_data.get("numeric_q3"), numeric_skewness=col_data.get("numeric_skewness"),
+            string_min_length=col_data.get("string_min_length"), string_max_length=col_data.get("string_max_length"),
+            string_avg_length=col_data.get("string_avg_length"), date_min=col_data.get("date_min"),
+            date_max=col_data.get("date_max"), date_formats=col_data.get("date_formats"),
+            value_frequency=col_data.get("value_frequency"), sample_values=col_data.get("sample_values"),
+        ))
+
+    quality_data = calculate_quality_report(profile_data, profile_data["columns"])
+    new_quality = QualityReport(
+        dataset_version_id=new_version.id, organization_id=org,
+        overall_score=quality_data["overall_score"],
+        completeness_score=quality_data.get("completeness_score"),
+        validity_score=quality_data.get("validity_score"),
+        consistency_score=quality_data.get("consistency_score"),
+        uniqueness_score=quality_data.get("uniqueness_score"),
+        integrity_score=quality_data.get("integrity_score"),
+        total_issues=quality_data["total_issues"],
+        critical_issues=quality_data.get("critical_issues", 0),
+        high_issues=quality_data.get("high_issues", 0),
+        medium_issues=quality_data.get("medium_issues", 0),
+        low_issues=quality_data.get("low_issues", 0),
+    )
+    db.add(new_quality)
+    await db.flush()
+    for issue in quality_data.get("issues", []):
+        db.add(QualityIssue(
+            quality_report_id=new_quality.id, dataset_version_id=new_version.id,
+            organization_id=org, issue_type=issue["issue_type"], severity=issue["severity"],
+            title=issue["title"], description=issue.get("description"),
+            affected_column=issue.get("affected_column"),
+            affected_row_count=issue.get("affected_row_count"),
+            affected_row_pct=issue.get("affected_row_pct"), evidence=issue.get("evidence"),
+            suggested_fix=issue.get("suggested_fix"), auto_fixable=issue.get("auto_fixable", False),
+        ))
+    new_version.quality_score = quality_data["overall_score"]
+    new_version.quality_delta = float(quality_data["overall_score"]) - float(source_version.quality_score or 0)
+    run.quality_after = quality_data["overall_score"]
+    run.quality_delta = new_version.quality_delta
+
     ds.current_version = next_version
     ds.status = "transformed"
 
