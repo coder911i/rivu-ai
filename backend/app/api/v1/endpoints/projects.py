@@ -8,7 +8,7 @@ from sqlalchemy import select, func
 import structlog
 
 from app.core.database import get_session
-from app.core.security import get_current_user
+from app.core.security import get_current_user, require_org_role
 from app.models.user import User
 from app.models.organization import Membership
 from app.models.project import Project
@@ -36,7 +36,8 @@ async def create_project(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_session),
 ):
-    org_id = await _get_user_org(current_user, db)
+    membership = await require_org_role(current_user, db, {"owner", "admin", "editor"})
+    org_id = membership.organization_id
 
     project = Project(
         organization_id=org_id,
@@ -114,7 +115,8 @@ async def delete_project(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_session),
 ):
-    org_id = await _get_user_org(current_user, db)
+    membership = await require_org_role(current_user, db, {"owner", "admin"})
+    org_id = membership.organization_id
     project = await _get_project_or_404(project_id, org_id, db)
     await db.delete(project)
     await db.commit()
