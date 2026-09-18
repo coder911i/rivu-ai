@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
-from app.core.security import get_current_user
+from app.core.security import get_current_user, require_org_role
 from app.core.storage import get_storage, build_storage_key, compute_checksum
 from app.core.exceptions import http_not_found
 from app.models.user import User
@@ -75,6 +75,7 @@ async def preview_plan(
     db: AsyncSession = Depends(get_session),
 ):
     _, version, _ = await _dataset(dataset_id, current_user, db)
+    await require_org_role(current_user, db, {"owner", "admin", "editor"})
     plan = (await db.execute(select(TransformationPlan).where(
         TransformationPlan.id == body.plan_id,
         TransformationPlan.dataset_version_id == version.id,
@@ -98,6 +99,7 @@ async def execute_plan(
     db: AsyncSession = Depends(get_session),
 ):
     ds, source_version, org = await _dataset(dataset_id, current_user, db)
+    await require_org_role(current_user, db, {"owner", "admin", "editor"})
     plan = (await db.execute(select(TransformationPlan).where(
         TransformationPlan.id == body.plan_id,
         TransformationPlan.dataset_version_id == source_version.id,
