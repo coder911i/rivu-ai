@@ -4,6 +4,7 @@ Datasets endpoints: upload, list, get, profile, analyze, version management.
 
 import io
 import uuid
+import re
 from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
@@ -64,8 +65,23 @@ async def upload_dataset(
     filename = file.filename or "upload"
     content_type = file.content_type or "application/octet-stream"
 
-    # Read file
-    raw_bytes = await file.read()
+    # Read with a hard upper bound so an oversized multipart body cannot consume
+    # unbounded application memory before validation.
+    max_bytes = 500 * 1024 * 1024
+    chunks = []
+    total = 0
+    while True:
+        chunk = await file.read(min(1024 * 1024, max_bytes - total + 1))
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_bytes:
+            raise HTTPException(
+                status_code=413,
+                detail={"message": "File exceeds the 500MB upload limit", "type": "file_too_large"},
+            )
+        chunks.append(chunk)
+    raw_bytes = b"".join(chunks)
     size = len(raw_bytes)
 
     try:
@@ -73,7 +89,9 @@ async def upload_dataset(
     except ValidationError as e:
         raise HTTPException(status_code=400, detail={"message": e.message, "type": "validation_error"})
 
-    dataset_name = name or filename.rsplit(".", 1)[0]
+    # Keep client-controlled filenames safe and portable in object-storage keys.
+    safe_filename = re.sub(r"[^A-Za-z0-9._-]", "_", filename).strip("._")[:200] or "upload"
+    dataset_name = (name or filename.rsplit(".", 1)[0]).strip()[:300] or "Dataset"
     checksum = compute_checksum(raw_bytes)
 
     # Create DataSource record
@@ -93,7 +111,7 @@ async def upload_dataset(
 
     # Build storage key for v1 (raw)
     storage_key = build_storage_key(
-        str(org_id), str(project_id), str(data_source.id), 1, filename
+        str(org_id), str(project_id), str(data_source.id), 1, safe_filename
     )
     storage_bucket = get_storage().bucket
 
@@ -108,7 +126,7 @@ async def upload_dataset(
                 "org_id": str(org_id),
                 "project_id": str(project_id),
                 "dataset_id": str(data_source.id),
-                "original_filename": filename,
+                "original_filename": safe_filename,
                 "format": file_format,
             },
         )
