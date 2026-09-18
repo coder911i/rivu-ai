@@ -55,8 +55,14 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; frame-ancestors 'none'; base-uri 'self'; "
-        "object-src 'none'; form-action 'self'"
+        "object-src 'none'; form-action 'self'; "
+        "script-src 'self'; style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: https:; font-src 'self' data:; "
+        "connect-src 'self' https:; media-src 'self' https:;"
     )
+    if settings.APP_ENV.lower() == "production":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
     response.headers["Cache-Control"] = "no-store" if request.url.path.startswith("/api/") else "public, max-age=60"
     duration_ms = (time.perf_counter() - start) * 1000
     logger.info(
