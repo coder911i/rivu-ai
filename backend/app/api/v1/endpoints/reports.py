@@ -17,7 +17,7 @@ router=APIRouter()
 
 @router.get("/{dataset_id}/json")
 async def report_json(dataset_id: UUID, current_user: User=Depends(get_current_user), db: AsyncSession=Depends(get_session)):
-    org=(await db.execute(select(Membership.organization_id).where(Membership.user_id==current_user.id,Membership.role=="owner").limit(1))).scalar_one_or_none()
+    org=(await db.execute(select(Membership.organization_id).where(Membership.user_id==current_user.id).limit(1))).scalar_one_or_none()
     ds=(await db.execute(select(DataSource).where(DataSource.id==dataset_id,DataSource.organization_id==org))).scalar_one_or_none()
     if not ds: raise HTTPException(404,"Dataset not found")
     version=(await db.execute(select(DatasetVersion).where(DatasetVersion.data_source_id==ds.id,DatasetVersion.version_number==ds.current_version))).scalar_one_or_none()
