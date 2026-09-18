@@ -17,7 +17,7 @@ import structlog
 
 from app.core.database import get_session
 from app.core.config import settings
-from app.core.security import get_current_user
+from app.core.security import get_current_user, require_org_role
 from app.core.storage import get_storage, compute_checksum, build_storage_key
 from app.core.exceptions import ValidationError, http_not_found
 from app.models.user import User
@@ -53,7 +53,8 @@ async def upload_dataset(
     db: AsyncSession = Depends(get_session),
 ):
     """Upload a dataset file and start processing pipeline."""
-    org_id = await _get_user_org(current_user, db)
+    membership = await require_org_role(current_user, db, {"owner", "admin", "editor"})
+    org_id = membership.organization_id
 
     # Verify project belongs to org
     project_result = await db.execute(
