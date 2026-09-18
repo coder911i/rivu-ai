@@ -166,6 +166,40 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_session)):
     }
 
 
+@router.post("/refresh", response_model=dict)
+async def refresh_token(body: dict, db: AsyncSession = Depends(get_session)):
+    """Exchange a valid refresh token for a new access token."""
+    token = body.get("refresh_token")
+    if not token:
+        raise HTTPException(status_code=400, detail={"message": "refresh_token is required", "type": "validation_error"})
+    payload = decode_token(token)
+    if payload.get("type") != "refresh":
+        raise HTTPException(status_code=401, detail={"message": "Invalid refresh token", "type": "unauthorized"})
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail={"message": "Invalid refresh token", "type": "unauthorized"})
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user or user.status != "active":
+        raise HTTPException(status_code=401, detail={"message": "Account is not active", "type": "unauthorized"})
+    membership_result = await db.execute(
+        select(Membership, Organization)
+        .join(Organization, Organization.id == Membership.organization_id)
+        .where(Membership.user_id == user.id, Membership.role == "owner")
+        .limit(1)
+    )
+    row = membership_result.first()
+    org_id = str(row.Organization.id) if row else None
+    return {
+        "tokens": {
+            "access_token": create_access_token(user.id, {"org_id": org_id} if org_id else {}),
+            "refresh_token": create_refresh_token(user.id),
+            "token_type": "bearer",
+            "expires_in": settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        }
+    }
+
+
 @router.get("/me", response_model=dict)
 async def get_me(
     current_user: User = Depends(get_current_user),
