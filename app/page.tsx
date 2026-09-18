@@ -63,7 +63,7 @@ export default function Home() {
       </div>
       <div className="top-actions">
         <button className="motion-toggle" onClick={() => setMotion(!motion)}>{motion ? "PAUSE" : "PLAY"}</button>
-        <button className="dark-pill" onClick={() => jump("product")}>ENTER RIVU <ArrowUpRight size={13}/></button>
+        <button className="dark-pill" onClick={() => window.location.href="/login"}>ENTER RIVU <ArrowUpRight size={13}/></button>
         <button className="menu-btn" onClick={() => setMenu(!menu)}>{menu ? <X size={18}/> : <Menu size={18}/>}</button>
       </div>
     </nav>
