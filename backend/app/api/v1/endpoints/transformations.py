@@ -91,6 +91,33 @@ async def preview_plan(
             "previews": generate_transformation_preview(df, operations, preview_rows=5)}
 
 
+
+
+@router.post("/{dataset_id}/transform/approve")
+async def approve_plan(
+    dataset_id: UUID,
+    body: ExecutePlanRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_session),
+):
+    """Explicitly approve a generated plan before execution."""
+    _, version, org = await _dataset(dataset_id, current_user, db)
+    await require_org_role(current_user, db, {"owner", "admin", "editor"})
+    plan = (await db.execute(select(TransformationPlan).where(
+        TransformationPlan.id == body.plan_id,
+        TransformationPlan.dataset_version_id == version.id,
+        TransformationPlan.organization_id == org,
+    ))).scalar_one_or_none()
+    if not plan:
+        raise HTTPException(404, "Transformation plan not found")
+    if plan.status == "executed":
+        raise HTTPException(409, "Transformation plan has already been executed")
+    plan.status = "approved"
+    plan.approved_by = current_user.id
+    plan.approved_at = datetime.now(timezone.utc)
+    await db.commit()
+    return {"plan_id": str(plan.id), "status": plan.status, "approved_at": plan.approved_at.isoformat()}
+
 @router.post("/{dataset_id}/transform/execute", status_code=201)
 async def execute_plan(
     dataset_id: UUID,
@@ -107,6 +134,9 @@ async def execute_plan(
     ))).scalar_one_or_none()
     if not plan:
         raise HTTPException(404, "Transformation plan not found")
+
+    if plan.status not in {"planned", "approved"}:
+        raise HTTPException(409, "Transformation plan is not executable in its current state")
 
     if plan.status == "executed":
         raise HTTPException(409, "Transformation plan has already been executed")
