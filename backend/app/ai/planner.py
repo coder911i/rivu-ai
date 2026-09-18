@@ -120,22 +120,66 @@ async def generate_transformation_plan(
         else:
             raise AIError(f"AI returned invalid JSON: {e}")
 
-    # Validate and sanitize operations
+    # Validate and sanitize operations. Never trust model-generated parameters.
+    valid_columns = {str(c.get("column_name")) for c in column_profiles}
     validated_operations = []
     for op in plan.get("operations", []):
-        op_type = op.get("type", "").strip().lower()
+        if not isinstance(op, dict):
+            continue
+        op_type = str(op.get("type", "")).strip().lower()
         if op_type not in ALLOWED_OPERATIONS:
             logger.warning("rejected_operation", type=op_type, reason="not in allowlist")
             continue
-        validated_op = {
-            "type": op_type,
-            "column": op.get("column"),
-            "confidence": float(op.get("confidence", 0.8)),
-            "reason": str(op.get("reason", "")),
-            "parameters": op.get("parameters") or {},
-        }
-        validated_operations.append(validated_op)
 
+        column = op.get("column")
+        row_level = {"remove_duplicates", "drop_nulls"}
+        if op_type not in row_level:
+            if not isinstance(column, str) or column not in valid_columns:
+                logger.warning("rejected_operation", type=op_type, reason="unknown_column", column=column)
+                continue
+
+        try:
+            confidence = float(op.get("confidence", 0.8))
+        except (TypeError, ValueError):
+            confidence = 0.8
+        confidence = max(0.0, min(1.0, confidence))
+
+        params = op.get("parameters")
+        if not isinstance(params, dict):
+            params = {}
+
+        if op_type == "fill_null":
+            strategy = str(params.get("strategy", "empty_string")).lower()
+            if strategy not in {"mean", "median", "mode", "empty_string"} and "fill_value" not in params:
+                strategy = "empty_string"
+            params = {**params, "strategy": strategy}
+        elif op_type == "clip_numeric":
+            if params.get("min") is None and params.get("max") is None:
+                logger.warning("rejected_operation", type=op_type, reason="missing_bounds")
+                continue
+        elif op_type == "rename_column":
+            new_name = str(params.get("new_name", "")).strip()
+            if not new_name or new_name in valid_columns or len(new_name) > 255:
+                logger.warning("rejected_operation", type=op_type, reason="invalid_new_name")
+                continue
+            params = {**params, "new_name": new_name}
+        elif op_type in {"flag_duplicates", "flag_outliers"}:
+            flag = str(params.get("flag_column", "")).strip()
+            if flag and (flag in valid_columns or len(flag) > 255):
+                logger.warning("rejected_operation", type=op_type, reason="invalid_flag_column")
+                continue
+        elif op_type in {"replace_value", "regex_replace"}:
+            if "old_value" not in params and "pattern" not in params:
+                logger.warning("rejected_operation", type=op_type, reason="missing_replacement_target")
+                continue
+
+        validated_operations.append({
+            "type": op_type,
+            "column": column,
+            "confidence": confidence,
+            "reason": str(op.get("reason", ""))[:2000],
+            "parameters": params,
+        })
     plan["operations"] = validated_operations
     plan["total_operations"] = len(validated_operations)
     plan["model"] = response.model
