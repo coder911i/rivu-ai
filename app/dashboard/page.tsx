@@ -11,10 +11,24 @@ export default function Dashboard(){
  const [projects,setProjects]=useState<Project[]>([]);const [selected,setSelected]=useState<Project|null>(null);const [datasets,setDatasets]=useState<Dataset[]>([]);const [loading,setLoading]=useState(true);const [error,setError]=useState("");const [showNew,setShowNew]=useState(false);const [name,setName]=useState("");const [uploading,setUploading]=useState(false);const [message,setMessage]=useState("");
  const token=()=>typeof window!=="undefined"?localStorage.getItem("rivu_access_token")||"":""; const headers=()=>({Authorization:"Bearer "+token()});
  async function load(){setLoading(true);try{const r=await fetch(API+"/projects/",{headers:headers()});if(r.status===401){location.href="/login";return}const d=await r.json();setProjects(d.projects||[]);if(!selected&&d.projects?.[0])selectProject(d.projects[0]);}catch(e){setError("Could not reach Rivu API.")}finally{setLoading(false)}}
- async function selectProject(p:Project){setSelected(p);try{const r=await fetch(API+"/projects/"+p.id,{headers:headers()});const d=await r.json();setDatasets(d.datasets||[])}catch{}}
+ async function selectProject(p:Project){
+  setSelected(p);
+  try{
+    const r=await fetch(API+"/projects/"+p.id,{headers:headers()});
+    if(r.status===401){location.href="/login";return}
+    const d=await r.json();
+    if(!r.ok) throw new Error(d.detail?.message||d.detail||"Could not load project");
+    setDatasets(d.datasets||[]);
+  }catch(e){setError(e instanceof Error?e.message:"Could not load project.")}
+}
  useEffect(()=>{load()},[]);
- async function create(){if(!name.trim())return;const r=await fetch(API+"/projects/",{method:"POST",headers:{...headers(),"Content-Type":"application/json"},body:JSON.stringify({name})});if(r.ok){setName("");setShowNew(false);await load()}else setError("Project could not be created.")}
- async function upload(e:ChangeEvent<HTMLInputElement>){const f=e.target.files?.[0];if(!f||!selected)return;setUploading(true);setMessage("Uploading and profiling…");const fd=new FormData();fd.append("file",f);fd.append("name",f.name.replace(/\.[^.]+$/,""));try{const r=await fetch(API+"/datasets/projects/"+selected.id+"/upload",{method:"POST",headers:headers(),body:fd});const d=await r.json();if(!r.ok)throw new Error(d.detail?.message||d.detail||"Upload failed");setMessage("Uploaded. Rivu is profiling the dataset.");setTimeout(()=>selectProject(selected),1200)}catch(e){setMessage(e instanceof Error?e.message:"Upload failed")}finally{setUploading(false);e.target.value=""}}
+ async function create(){if(!name.trim())return;const r=await fetch(API+"/projects/",{method:"POST",headers:{...headers(),"Content-Type":"application/json"},body:JSON.stringify({name})});if(r.ok){setName("");setShowNew(false);await load()}else{const d=await r.json().catch(()=>({}));setError(d.detail?.message||d.detail||"Project could not be created.")}}
+ async function upload(e:ChangeEvent<HTMLInputElement>){const f=e.target.files?.[0];if(!f||!selected)return;setUploading(true);setMessage("Uploading and profiling…");const fd=new FormData();fd.append("file",f);fd.append("name",f.name.replace(/\.[^.]+$/,""));try{const r=await fetch(API+"/datasets/projects/"+selected.id+"/upload",{method:"POST",headers:headers(),body:fd});const d=await r.json();if(!r.ok)throw new Error(d.detail?.message||d.detail||"Upload failed");setMessage("Uploaded. Rivu is profiling the dataset…");
+    await selectProject(selected);
+    // Refresh while the background profiler is running so the UI reflects the real status.
+    let attempts=0;
+    const poll=async()=>{attempts++; await selectProject(selected); if(attempts<20){setTimeout(poll,1500)}else{setMessage("Processing is taking longer than usual. You can open the dataset when it is ready.")}};
+    setTimeout(poll,1200)}catch(e){setMessage(e instanceof Error?e.message:"Upload failed")}finally{setUploading(false);e.target.value=""}}
  function logout(){localStorage.clear();location.href="/login"}
  return <main className={styles.app}><aside><div className={styles.brand}><b>R</b> Rivu<span>ai</span></div><div className={styles.nav}><a className={styles.active}><Activity size={17}/>Overview</a><a><Database size={17}/>Datasets</a><a><Sparkles size={17}/>AI Intelligence</a><a><FileText size={17}/>Reports</a><a><ShieldCheck size={17}/>Security</a></div><button className={styles.logout} onClick={logout}><LogOut size={16}/>Sign out</button></aside>
  <section className={styles.main}><header><div><div className={styles.eyebrow}>WORKSPACE / DATA INTELLIGENCE</div><h1>Good data starts here.</h1><p>Refine messy information into a verified intelligence layer.</p></div><div className={styles.headerActions}><button onClick={load}><RefreshCw size={15}/></button><button className={styles.primary} onClick={()=>setShowNew(true)}><Plus size={16}/> New project</button></div></header>
