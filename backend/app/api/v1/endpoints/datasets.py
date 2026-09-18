@@ -66,24 +66,25 @@ async def upload_dataset(
     filename = file.filename or "upload"
     content_type = file.content_type or "application/octet-stream"
 
-    # Read with a hard upper bound so an oversized multipart body cannot consume
-    # unbounded application memory before validation.
-    max_bytes = settings.MAX_UPLOAD_SIZE_BYTES
-    chunks = []
-    total = 0
+    # FastAPI spools UploadFile to a temporary file. Hash and size it in bounded chunks
+    # instead of copying the entire upload into application memory.
+    import hashlib
+    await file.seek(0)
+    digest = hashlib.sha256()
+    size = 0
     while True:
-        chunk = await file.read(min(1024 * 1024, max_bytes - total + 1))
+        chunk = await file.read(1024 * 1024)
         if not chunk:
             break
-        total += len(chunk)
-        if total > max_bytes:
+        size += len(chunk)
+        if size > settings.MAX_UPLOAD_SIZE_BYTES:
             raise HTTPException(
                 status_code=413,
                 detail={"message": f"File exceeds the {settings.MAX_UPLOAD_SIZE_MB}MB upload limit", "type": "file_too_large"},
             )
-        chunks.append(chunk)
-    raw_bytes = b"".join(chunks)
-    size = len(raw_bytes)
+        digest.update(chunk)
+    checksum = digest.hexdigest()
+    await file.seek(0)
 
     try:
         file_format = validate_upload(filename, size, content_type)
@@ -93,7 +94,6 @@ async def upload_dataset(
     # Keep client-controlled filenames safe and portable in object-storage keys.
     safe_filename = re.sub(r"[^A-Za-z0-9._-]", "_", filename).strip("._")[:200] or "upload"
     dataset_name = (name or filename.rsplit(".", 1)[0]).strip()[:300] or "Dataset"
-    checksum = compute_checksum(raw_bytes)
 
     # Create DataSource record
     data_source = DataSource(
@@ -121,7 +121,7 @@ async def upload_dataset(
         storage = get_storage()
         await storage.upload_file(
             key=storage_key,
-            data=raw_bytes,
+            data=file.file,
             content_type=content_type,
             metadata={
                 "org_id": str(org_id),
@@ -176,7 +176,7 @@ async def upload_dataset(
         version_id=str(version.id),
         data_source_id=str(data_source.id),
         org_id=str(org_id),
-        raw_bytes=raw_bytes,
+        raw_bytes=None,
         file_format=file_format,
     )
 
