@@ -8,7 +8,34 @@ export default function DatasetPage({params}:{params:{id:string}}){
  const h=()=>({Authorization:"Bearer "+(typeof window!=="undefined"?localStorage.getItem("rivu_access_token")||"":"")});
  async function load(){try{const [p,q]=await Promise.all([fetch(API+"/datasets/"+params.id+"/profile",{headers:h()}),fetch(API+"/datasets/"+params.id+"/quality",{headers:h()})]);if(p.ok)setProfile(await p.json());if(q.ok)setQuality(await q.json());}catch{setError("Unable to load dataset intelligence.")}}
  useEffect(()=>{load()},[]);
- async function ai(){setBusy(true);setError("");try{const r=await fetch(API+"/datasets/"+params.id+"/ai-plan",{method:"POST",headers:h()});const d=await r.json();if(!r.ok)throw new Error(d.detail||"AI plan failed");setPlan(d)}catch(e){setError(e instanceof Error?e.message:"AI plan failed")}finally{setBusy(false)}}
+ async function ai() {
+  setBusy(true);
+  setError("");
+
+  try {
+    const response = await fetch(
+      API + "/datasets/" + params.id + "/ai-plan",
+      {
+        method: "POST",
+        headers: h(),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.detail || "AI plan failed");
+    }
+
+    setPlan(data);
+  } catch (error) {
+    setError(
+      error instanceof Error ? error.message : "AI plan failed"
+    );
+  } finally {
+    setBusy(false);
+  }
+ }
  const report=()=>{window.open(API+"/reports/"+params.id+"/json","_blank")};
  return <main className={styles.page}><header><a href="/dashboard"><ArrowLeft size={16}/> Workspace</a><div className={styles.secure}><ShieldCheck size={15}/> Tenant-isolated data</div></header>
  {!profile?<div className={styles.loading}><Loader2 className={styles.spin}/><h2>Refining your dataset…</h2><p>Rivu is profiling structure, quality and consistency.</p><button onClick={load}>Refresh</button></div>:
