@@ -137,8 +137,11 @@ async def execute_plan(
     elif output_format == "json":
         out.write(output_df.write_json().encode("utf-8"))
         content_type = "application/json"
+    elif output_format == "parquet":
+        output_df.write_parquet(out)
+        content_type = "application/octet-stream"
     else:
-        # Keep Excel transformations as CSV to avoid silently corrupting workbooks.
+        # Excel transformations are exported as CSV to keep the pipeline deterministic.
         output_format = "csv"
         filename = f"{ds.name}_v{source_version.version_number + 1}.csv"
         output_df.write_csv(out)
