@@ -36,8 +36,10 @@ def detect_file_format(filename: str, content_type: str) -> str:
         return "xlsx"
     elif suffix in (".json",):
         return "json"
+    elif suffix in (".parquet",):
+        return "parquet"
     else:
-        raise ValidationError(f"Unsupported file format: {suffix}. Supported: CSV, XLSX, JSON")
+        raise ValidationError(f"Unsupported file format: {suffix}. Supported: CSV, XLSX, JSON, Parquet")
 
 
 def detect_encoding(data: bytes) -> str:
