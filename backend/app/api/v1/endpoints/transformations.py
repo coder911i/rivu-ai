@@ -135,7 +135,7 @@ async def execute_plan(
     if not plan:
         raise HTTPException(404, "Transformation plan not found")
 
-    if plan.status not in {"planned", "approved"}:
+    if plan.status != "approved":
         raise HTTPException(409, "Transformation plan is not executable in its current state")
 
     if plan.status == "executed":
