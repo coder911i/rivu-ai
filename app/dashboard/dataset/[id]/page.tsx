@@ -94,6 +94,13 @@ export default function DatasetPage({params}:{params:{id:string}}){
   if (!plan?.id || !window.confirm("Execute this approved refinement plan and create a new dataset version?")) return;
   setRunning(true); setError("");
   try {
+    const approval = await authFetch("/datasets/" + params.id + "/transform/approve", {
+      method: "POST", headers: {...authHeaders(), "Content-Type":"application/json"},
+      body: JSON.stringify({plan_id: plan.id})
+    });
+    const approvalData = await approval.json().catch(() => ({}));
+    if (!approval.ok) throw new Error(approvalData.detail?.message || approvalData.detail || "Plan approval failed");
+
     const r = await authFetch("/datasets/" + params.id + "/transform/execute", {
       method: "POST", headers: {...authHeaders(), "Content-Type":"application/json"},
       body: JSON.stringify({plan_id: plan.id})
@@ -109,7 +116,7 @@ export default function DatasetPage({params}:{params:{id:string}}){
 
  async function report() {
   try {
-    const response = await authFetch("/reports/" + params.id + "/json", { headers: authHeaders() });
+    const response = await authFetch("/reports/" + params.id + "/pdf", { headers: authHeaders() });
     if (!response.ok) throw new Error("Could not generate report");
     const blob = await response.blob();
     const url = URL.createObjectURL(blob);
