@@ -36,7 +36,21 @@ export default function DatasetPage({params}:{params:{id:string}}){
     setBusy(false);
   }
  }
- const report=()=>{window.open(API+"/reports/"+params.id+"/json","_blank")};
+ async function report() {
+  try {
+    const response = await fetch(API + "/reports/" + params.id + "/json", { headers: h() });
+    if (!response.ok) throw new Error("Could not generate report");
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "rivu-report-" + params.id + ".json";
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    setError(error instanceof Error ? error.message : "Could not generate report");
+  }
+ }
  return <main className={styles.page}><header><a href="/dashboard"><ArrowLeft size={16}/> Workspace</a><div className={styles.secure}><ShieldCheck size={15}/> Tenant-isolated data</div></header>
  {!profile?<div className={styles.loading}><Loader2 className={styles.spin}/><h2>Refining your dataset…</h2><p>Rivu is profiling structure, quality and consistency.</p><button onClick={load}>Refresh</button></div>:
  <><div className={styles.hero}><div><div className={styles.kicker}>DATASET / {profile.dataset.status?.toUpperCase()}</div><h1>{profile.dataset.name}</h1><p>{profile.profile.row_count.toLocaleString()} rows · {profile.profile.column_count} columns · v{profile.version.number}</p></div><div className={styles.actions}><button onClick={report}><Download size={15}/> Report</button><button className={styles.ai} onClick={ai} disabled={busy}>{busy?<Loader2 className={styles.spin}/>:<WandSparkles size={15}/>} {busy?"Analyzing…":"AI Refinery Plan"}</button></div></div>
