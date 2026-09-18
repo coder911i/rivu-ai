@@ -22,7 +22,7 @@ logger = structlog.get_logger(__name__)
 async def _get_user_org(user: User, db: AsyncSession) -> UUID:
     """Get the primary organization for the current user."""
     result = await db.execute(
-        select(Membership).where(Membership.user_id == user.id, Membership.role == "owner").limit(1)
+        select(Membership).where(Membership.user_id == user.id).limit(1)
     )
     m = result.scalar_one_or_none()
     if not m:
