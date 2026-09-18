@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Optional
 from sqlalchemy import (
     String, DateTime, ForeignKey, Integer, BigInteger, Numeric,
-    Boolean, Text, func, ARRAY
+    Boolean, Text, func, ARRAY, UniqueConstraint
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -55,6 +55,7 @@ class DataSource(Base):
 
 class DatasetVersion(Base):
     __tablename__ = "dataset_versions"
+    __table_args__ = (UniqueConstraint("data_source_id", "version_number", name="uq_dataset_version_number"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     data_source_id: Mapped[uuid.UUID] = mapped_column(
