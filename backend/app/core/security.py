@@ -96,3 +96,27 @@ async def get_current_user(
 
 async def get_current_active_user(current_user=Depends(get_current_user)):
     return current_user
+
+
+async def get_user_membership(user, db):
+    """Return the user's primary organization membership."""
+    from sqlalchemy import select
+    from app.models.organization import Membership
+    result = await db.execute(
+        select(Membership).where(Membership.user_id == user.id).order_by(Membership.created_at.asc()).limit(1)
+    )
+    membership = result.scalar_one_or_none()
+    if not membership:
+        raise HTTPException(status_code=403, detail={"message": "No organization membership", "type": "forbidden"})
+    return membership
+
+
+async def require_org_role(user, db, allowed_roles: set[str]):
+    """Centralized organization role check used by mutating endpoints."""
+    membership = await get_user_membership(user, db)
+    if membership.role not in allowed_roles:
+        raise HTTPException(
+            status_code=403,
+            detail={"message": "Insufficient organization permissions", "type": "forbidden"},
+        )
+    return membership
