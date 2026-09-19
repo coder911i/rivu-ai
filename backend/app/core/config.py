@@ -53,6 +53,15 @@ class Settings(BaseSettings):
     MAX_AI_SAMPLE_ROWS: int = 1_000
     JOB_WORKER_CONCURRENCY: int = 4
 
+    @field_validator("GROQ_MODEL", mode="before")
+    @classmethod
+    def normalize_groq_model(cls, value):
+        # Groq deprecated llama-3.3-70b-versatile for free/developer usage in Aug 2026.
+        # Keep older Render env values from breaking AI refinement after deployment.
+        if value == "llama-3.3-70b-versatile":
+            return "openai/gpt-oss-120b"
+        return value
+
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
     def normalize_origins(cls, value):
