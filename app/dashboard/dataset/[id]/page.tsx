@@ -4,6 +4,7 @@ import { ArrowLeft, BrainCircuit, CheckCircle2, Download, Loader2, ShieldCheck, 
 import { useRouter } from "next/navigation";
 import styles from "./dataset.module.css";
 import { authFetch } from "../../../../lib/api";
+import BrandLogo from "../../../../lib/BrandLogo";
 const API=process.env.NEXT_PUBLIC_API_URL||"http://127.0.0.1:8000/api/v1";
 const authHeaders=()=>({Authorization:"Bearer "+(typeof window!=="undefined"?localStorage.getItem("rivu_access_token")||"":"")});
 
@@ -151,7 +152,7 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
  return (
   <main className={styles.page}>
    <header>
-    <a href="/dashboard"><ArrowLeft size={16}/> Workspace</a>
+    <div className={styles.headerLeft}><a href="/dashboard"><ArrowLeft size={16}/> Workspace</a><BrandLogo href="/dashboard" className={styles.datasetLogo}/></div>
     <div className={styles.secure}><ShieldCheck size={15}/> Tenant-isolated data</div>
    </header>
 
