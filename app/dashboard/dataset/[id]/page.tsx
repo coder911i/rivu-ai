@@ -87,10 +87,14 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
     });
     const planData=await planResponse.json().catch(()=>({}));
     if(!planResponse.ok) throw new Error(apiErrorMessage(planData,"AI refinement plan failed"));
-    if(!planData.id || !Array.isArray(planData.operations) || planData.operations.length===0){
-      throw new Error("Rivu could not find any safe cleaning operations for this dataset.");
+    if(!planData.id || !Array.isArray(planData.operations)){
+      throw new Error("Rivu returned an invalid refinement plan.");
     }
     setPlan(planData);
+    if(planData.operations.length===0){
+      setError("✓ Dataset is already clean enough — no safe transformations were required. Your report is ready.");
+      return;
+    }
 
     const approval=await authFetch("/datasets/"+datasetId+"/transform/approve",{
       method:"POST",headers:{...authHeaders(),"Content-Type":"application/json"},
