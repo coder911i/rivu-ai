@@ -10,7 +10,7 @@ from app.core.security import get_current_user
 from app.models.user import User
 from app.models.organization import Membership
 from app.models.dataset import DataSource, DatasetVersion
-from app.models.profile import DataProfile
+from app.models.profile import DataProfile, ColumnProfile
 from app.models.quality import QualityReport, QualityIssue
 from app.models.transformation import TransformationRun
 from app.ai.factory import get_ai_provider
@@ -42,7 +42,7 @@ async def report_dashboard(dataset_id: UUID, current_user: User=Depends(get_curr
     org=(await db.execute(select(Membership.organization_id).where(Membership.user_id==current_user.id).limit(1))).scalar_one_or_none()
     ds=(await db.execute(select(DataSource).where(DataSource.id==dataset_id,DataSource.organization_id==org))).scalar_one_or_none()
     if not ds: raise HTTPException(404,"Dataset not found")
-    version=(await db.execute(select(DatasetVersion).where(DataSource.id==dataset_id, DatasetVersion.version_number==ds.current_version))).scalar_one_or_none()
+    version=(await db.execute(select(DatasetVersion).where(DatasetVersion.data_source_id==ds.id, DatasetVersion.version_number==ds.current_version))).scalar_one_or_none()
     if not version: raise HTTPException(404,"Dataset version not found")
     profile=(await db.execute(select(DataProfile).where(DataProfile.dataset_version_id==version.id))).scalar_one_or_none()
     quality=(await db.execute(select(QualityReport).where(QualityReport.dataset_version_id==version.id))).scalar_one_or_none()
@@ -50,7 +50,7 @@ async def report_dashboard(dataset_id: UUID, current_user: User=Depends(get_curr
     issues=(await db.execute(select(QualityIssue).where(QualityIssue.quality_report_id==quality.id))).scalars().all()
     latest_run=(await db.execute(select(TransformationRun).where(TransformationRun.output_version_id==version.id).order_by(TransformationRun.completed_at.desc()))).scalars().first()
     columns=[]
-    for c in (await db.execute(select(__import__("app.models.profile",fromlist=["ColumnProfile"]).ColumnProfile).where(__import__("app.models.profile",fromlist=["ColumnProfile"]).ColumnProfile.data_profile_id==profile.id).order_by(__import__("app.models.profile",fromlist=["ColumnProfile"]).ColumnProfile.column_index))).scalars().all():
+    for c in (await db.execute(select(ColumnProfile).where(ColumnProfile.data_profile_id==profile.id).order_by(ColumnProfile.column_index))).scalars().all():
         columns.append({"name":c.column_name,"type":c.inferred_type,"semantic_type":c.semantic_type,"null_pct":float(c.null_pct or 0),"unique_pct":float(c.uniqueness_pct or 0),"samples":(c.sample_values or [])[:5]})
     sample_rows=profile.sample_rows or []
     payload={
