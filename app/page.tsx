@@ -18,7 +18,7 @@ function Logo() {
 }
 
 function DataShape({ className = "" }: { className?: string }) {
-  return <div className={\`data-shape \${className}\`}><div className="shape-face front"/><div className="shape-face top"/><div className="shape-face side"/></div>;
+  return <div className={`data-shape ${className}`}><div className="shape-face front"/><div className="shape-face top"/><div className="shape-face side"/></div>;
 }
 
 export default function Home() {
@@ -49,7 +49,7 @@ export default function Home() {
       <nav className="ts-nav">
         <div className="nav-inner">
           <Logo />
-          <div className={\`nav-links \${menu ? "mobile-open" : ""}\`}>
+          <div className={`nav-links ${menu ? "mobile-open" : ""}`}>
             <button onClick={() => go("solutions")}>Solutions</button>
             <button onClick={() => go("engine")}>Data Engine</button>
             <button onClick={() => go("quality")}>Quality</button>
