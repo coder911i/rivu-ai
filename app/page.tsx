@@ -1,133 +1,136 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowDownRight, ArrowUpRight, ChevronDown, ChevronRight, Database, FileCheck2, Layers3, Menu, Sparkles, X } from "lucide-react";
+import { ArrowRight, ChevronDown, Database, FileCheck2, Layers3, Menu, ShieldCheck, Sparkles, Workflow, X, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-const capabilities = [
-  ["01", "Ingest", "Bring files, exports and operational data into one controlled starting point.", Database],
-  ["02", "Understand", "Profile structure, types, relationships and anomalies before changing anything.", Sparkles],
-  ["03", "Refine", "Clean, deduplicate, normalize and transform the messy middle automatically.", Layers3],
-  ["04", "Trust", "Validate every output with rules, lineage and quality checks.", FileCheck2],
-] as const;
-
-const stages = [
-  ["01", "INGEST", "CSV / JSON / XLSX"],
-  ["02", "PROFILE", "SCHEMA / TYPES / CONTEXT"],
-  ["03", "CLEAN", "NULLS / DUPLICATES / ERRORS"],
-  ["04", "NORMALIZE", "FORMATS / NAMES / TYPES"],
-  ["05", "VALIDATE", "RULES / QUALITY / LINEAGE"],
-  ["06", "READY", "ANALYTICS / AI / DECISIONS"],
-] as const;
-
-const faqs = [
-  ["What is Rivu?", "Rivu is an AI-native data refinery that turns messy operational data into clean, structured and analytics-ready information."],
-  ["What data does it handle?", "CSV, JSON, spreadsheets, exports and other inconsistent datasets can move through the refinement workflow."],
-  ["Does it replace our database or warehouse?", "No. Rivu is designed as a refinement layer between raw sources and the systems where teams analyze or operationalize data."],
-  ["Can transformations be traced?", "The product model is built around visible transformations, validation and source-to-output context so changes can be reviewed."],
+const services = [
+  { icon: Database, title: "Data Ingestion", text: "Bring CSVs, JSON, spreadsheets and operational exports into one controlled workflow." },
+  { icon: Sparkles, title: "AI Understanding", text: "Profile schemas, types, anomalies and relationships before transformations begin." },
+  { icon: Workflow, title: "Smart Refinement", text: "Clean, deduplicate, normalize and transform inconsistent data automatically." },
+  { icon: FileCheck2, title: "Quality Control", text: "Validate outputs with rules, lineage and visible transformation context." },
 ];
 
+const stages = ["INGEST", "UNDERSTAND", "CLEAN", "NORMALIZE", "VALIDATE", "READY"];
+
 function Logo() {
-  return <a className="brand" href="#top" aria-label="Rivu AI"><span className="brand-mark"><i/><i/><i/><i/></span><span className="brand-word">Rivu<span>ai</span></span></a>;
+  return <a href="#top" className="ts-logo" aria-label="Rivu home"><span className="ts-mark"><i/><i/><i/><i/></span><span>rivu<span className="logo-ai">ai</span></span></a>;
 }
 
-function Orb({ small = false }: { small?: boolean }) {
-  return <div className={small ? "orb orb-small" : "orb"}><span/><i/><b/></div>;
-}
-
-function Cube({ large = false }: { large?: boolean }) {
-  return <div className={large ? "cube cube-large" : "cube"}>{Array.from({length:6}).map((_,i)=><i key={i}/>)}<b>R</b></div>;
+function DataShape({ className = "" }: { className?: string }) {
+  return <div className={\`data-shape \${className}\`}><div className="shape-face front"/><div className="shape-face top"/><div className="shape-face side"/></div>;
 }
 
 export default function Home() {
   const router = useRouter();
   const [menu, setMenu] = useState(false);
-  const [activeStage, setActiveStage] = useState(0);
-  const [faq, setFaq] = useState(0);
-  const [mouse, setMouse] = useState({x:0,y:0});
+  const [active, setActive] = useState(0);
+  const [typed, setTyped] = useState("");
 
   useEffect(() => {
-    const move = (e: MouseEvent) => setMouse({x:(e.clientX / window.innerWidth - .5) * 16, y:(e.clientY / window.innerHeight - .5) * 12});
-    window.addEventListener("mousemove", move);
-    return () => window.removeEventListener("mousemove", move);
+    const text = "From messy data to intelligence";
+    let i = 0;
+    const timer = setInterval(() => {
+      i += 1;
+      setTyped(text.slice(0, i));
+      if (i >= text.length) clearInterval(timer);
+    }, 55);
+    return () => clearInterval(timer);
   }, []);
 
-  const jump = (id: string) => { setMenu(false); document.getElementById(id)?.scrollIntoView({behavior:"smooth"}); };
+  const go = (id: string) => {
+    setMenu(false);
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+  };
 
-  return <main id="top" className="rivu-site">
-    <div className="grain"/>
-    <nav className="nav">
-      <Logo/>
-      <div className={menu ? "nav-menu open" : "nav-menu"}>
-        <button onClick={()=>jump("capabilities")}>01 <span>Capabilities</span></button>
-        <button onClick={()=>jump("engine")}>02 <span>Engine</span></button>
-        <button onClick={()=>jump("quality")}>03 <span>Quality</span></button>
-        <button onClick={()=>jump("faq")}>04 <span>FAQ</span></button>
-      </div>
-      <div className="nav-right">
-        <button className="nav-login" onClick={()=>router.push("/login")}>ENTER RIVU <ArrowUpRight size={14}/></button>
-        <button className="nav-menu-btn" onClick={()=>setMenu(!menu)}>{menu?<X size={18}/>:<Menu size={18}/>}</button>
-      </div>
-    </nav>
+  return (
+    <main id="top" className="ts-page">
+      <div className="dot-pattern" />
+      <nav className="ts-nav">
+        <div className="nav-inner">
+          <Logo />
+          <div className={\`nav-links \${menu ? "mobile-open" : ""}\`}>
+            <button onClick={() => go("solutions")}>Solutions</button>
+            <button onClick={() => go("engine")}>Data Engine</button>
+            <button onClick={() => go("quality")}>Quality</button>
+            <button onClick={() => go("about")}>About Rivu</button>
+          </div>
+          <div className="nav-actions">
+            <button className="nav-quote" onClick={() => router.push("/login")}>Get Started <span>→</span></button>
+            <button className="mobile-menu" onClick={() => setMenu(!menu)} aria-label="Menu">{menu ? <X/> : <Menu/>}</button>
+          </div>
+        </div>
+      </nav>
 
-    <section className="hero">
-      <div className="hero-left">
-        <div className="eyebrow"><b/> AI-NATIVE DATA REFINERY</div>
-        <h1>Make messy<br/><em>data useful.</em></h1>
-        <p>Rivu is the intelligent layer between raw information and the systems that depend on it.</p>
-        <div className="hero-actions"><button className="primary" onClick={()=>jump("engine")}>Explore Rivu <ArrowDownRight size={16}/></button><button className="text-link" onClick={()=>router.push("/login")}>Open workspace <ArrowUpRight size={15}/></button></div>
-      </div>
-      <div className="hero-art" style={{"--mx":mouse.x+"px","--my":mouse.y+"px"} as React.CSSProperties}>
-        <div className="art-label"><b>RIVU ENGINE</b><span>RAW → REFINED → READY</span></div>
-        <div className="art-grid"/>
-        <div className="art-ring ring-a"/><div className="art-ring ring-b"/><div className="art-ring ring-c"/>
-        <div className="data-stream s1"/><div className="data-stream s2"/><div className="data-stream s3"/>
-        <div className="raw-card"><small>RAW INPUT</small><strong>messy_data.csv</strong><span>14,238 rows</span></div>
-        <div className="refine-card"><div className="mini-logo">R</div><small>REFINING</small><strong>schema detected</strong><span>duplicates resolved</span><span>types normalized</span></div>
-        <Orb/><Orb small/><Cube/>
-        <div className="art-word">RIVU</div>
-      </div>
-      <div className="hero-bottom"><span>SCROLL TO EXPLORE</span><i/></div>
-    </section>
+      <section className="ts-hero">
+        <div className="hero-copy">
+          <div className="eyebrow"><span/> AI-NATIVE DATA REFINERY</div>
+          <h1>{typed}<span className="cursor"/></h1>
+          <p>Rivu is the intelligent layer between raw information and the systems that depend on it.</p>
+          <div className="hero-button-row">
+            <button className="dark-button" onClick={() => go("solutions")}>Explore Rivu <span>→</span></button>
+          </div>
+          <div className="hero-points">
+            <div><b>•</b> Clean inconsistent operational data</div>
+            <div><b>•</b> Understand structure before transforming</div>
+            <div><b>•</b> Deliver trusted, analytics-ready outputs</div>
+          </div>
+        </div>
 
-    <section className="intro" id="capabilities">
-      <div className="section-kicker">01 — THE REFINERY</div>
-      <div className="intro-head"><h2>The messy middle<br/><em>is where we work.</em></h2><p>Modern teams have more data than ever. Rivu gives that data a controlled path from uncertainty to usable intelligence.</p></div>
-      <div className="capabilities">{capabilities.map(([n,title,text,Icon])=><article className="capability" key={n}><div className="cap-top"><span>{n}</span><Icon size={21}/></div><h3>{title}</h3><p>{text}</p><ArrowUpRight className="cap-arrow" size={17}/></article>)}</div>
-    </section>
+        <div className="hero-visual">
+          <div className="visual-glow"/>
+          <div className="visual-grid"/>
+          <div className="visual-caption"><b>RIVU ENGINE</b><span>RAW → REFINED → READY</span></div>
+          <DataShape className="shape-one"/>
+          <DataShape className="shape-two"/>
+          <DataShape className="shape-three"/>
+          <div className="floating-card raw"><small>RAW INPUT</small><strong>messy_data.csv</strong><span>14,238 rows</span></div>
+          <div className="floating-card refined"><small>RIVU REFINING</small><strong>schema detected</strong><span>duplicates resolved</span><span>types normalized</span></div>
+          <div className="orb-main"><span/><i/><b/></div>
+          <div className="ring ring-1"/><div className="ring ring-2"/><div className="ring ring-3"/>
+          <div className="big-rivu">RIVU</div>
+        </div>
+        <button className="scroll-cue" onClick={() => go("solutions")}>SCROLL TO EXPLORE <span>↓</span></button>
+      </section>
 
-    <section className="engine" id="engine">
-      <div className="engine-top"><div><div className="section-kicker light">02 — THE RIVU ENGINE</div><h2>One flow.<br/><em>Every layer.</em></h2></div><p>Move through the refinery stage by stage. The interface stays simple while the data work underneath stays rigorous.</p></div>
-      <div className="stage-nav">{stages.map((s,i)=><button key={s[0]} className={activeStage===i?"active":""} onClick={()=>setActiveStage(i)}><span>{s[0]}</span><b>{s[1]}</b><ChevronRight size={14}/></button>)}</div>
-      <div className="engine-visual">
-        <div className="big-word">REFINE</div><div className="orbit o1"/><div className="orbit o2"/><div className="orbit o3"/>
-        <div className="engine-core"><Cube large/><Orb small/></div>
-        <div className="stage-panel"><small>ACTIVE STAGE</small><b>{stages[activeStage][1]}</b><span>{stages[activeStage][2]}</span><div><i/><i/><i/><i/></div></div>
-        <div className="line-copy">SOURCE<br/><span>TRANSFORM</span><br/>OUTPUT</div>
-      </div>
-      <div className="engine-foot"><span>RAW</span><i/><span>UNDERSTAND</span><i/><span>TRANSFORM</span><i/><span>TRUST</span></div>
-    </section>
+      <section className="strip">
+        <span>CSV</span><span>JSON</span><span>XLSX</span><span>DATABASE EXPORTS</span><span>API DATA</span><span>AI / ANALYTICS READY</span>
+      </section>
 
-    <section className="quality" id="quality">
-      <div className="quality-copy"><div className="section-kicker">03 — QUALITY INTELLIGENCE</div><h2>Know what changed.<br/><em>Know why.</em></h2><p>Rivu treats data quality as part of the product experience — not a report you discover after the damage is done.</p><div className="quality-list"><span><b>01</b> Traceable transformations</span><span><b>02</b> Validation before delivery</span><span><b>03</b> Source-aware outputs</span></div></div>
-      <div className="quality-art"><div className="quality-mesh"/><div className="quality-disc"><span>QUALITY</span><b>INTELLIGENCE</b></div>{[1,2,3,4].map(i=><i className={"qorbit q"+i} key={i}/>)}</div>
-    </section>
+      <section id="solutions" className="section intro-section">
+        <div className="section-label">01 — THE REFINERY</div>
+        <div className="section-heading"><h2>The messy middle<br/><em>is where we work.</em></h2><p>Data rarely arrives ready for analysis. Rivu creates a controlled path from uncertainty to usable intelligence.</p></div>
+        <div className="service-grid">
+          {services.map(({ icon: Icon, title, text }, i) => <article className="service-card" key={title}><div className="service-top"><span>0{i + 1}</span><Icon/></div><h3>{title}</h3><p>{text}</p><span className="card-arrow">↗</span></article>)}
+        </div>
+      </section>
 
-    <section className="manifesto">
-      <div className="manifesto-art"><div className="manifesto-shape"/><div className="manifesto-mark">RIVU<br/><small>DATA REFINERY</small></div><span>04 / MESSY MIDDLE</span></div>
-      <div className="manifesto-copy"><div className="section-kicker">BUILT FOR THE MESSY MIDDLE</div><h2>Data is not a file.<br/><em>It is a system.</em></h2><p>Sources change. Formats drift. Teams add context. Systems disagree. Rivu gives that movement a consistent refinement layer.</p><button className="primary" onClick={()=>jump("faq")}>Read the principles <ArrowDownRight size={16}/></button></div>
-    </section>
+      <section id="engine" className="engine-section">
+        <div className="engine-heading"><div><div className="section-label light">02 — THE RIVU ENGINE</div><h2>One flow.<br/><em>Every layer.</em></h2></div><p>Move through the refinery stage by stage. The interface stays simple while the data work underneath stays rigorous.</p></div>
+        <div className="stage-tabs">{stages.map((s, i) => <button key={s} className={active === i ? "active" : ""} onClick={() => setActive(i)}><span>0{i + 1}</span><b>{s}</b><ArrowRight/></button>)}</div>
+        <div className="engine-art">
+          <div className="engine-word">REFINE</div><div className="engine-orbit e1"/><div className="engine-orbit e2"/><div className="engine-orbit e3"/>
+          <div className="engine-core"><DataShape/><div className="core-dot"/></div>
+          <div className="stage-panel"><small>ACTIVE STAGE</small><strong>{stages[active]}</strong><span>{active === 0 ? "CSV / JSON / XLSX" : active === 1 ? "SCHEMA / TYPES / CONTEXT" : active === 2 ? "NULLS / DUPLICATES / ERRORS" : active === 3 ? "FORMATS / NAMES / TYPES" : active === 4 ? "RULES / QUALITY / LINEAGE" : "ANALYTICS / AI / DECISIONS"}</span><div className="panel-bars"><i/><i/><i/><i/></div></div>
+        </div>
+        <div className="engine-foot"><span>RAW</span><i/><span>UNDERSTAND</span><i/><span>TRANSFORM</span><i/><span>TRUST</span></div>
+      </section>
 
-    <section className="faq-section" id="faq">
-      <div><div className="section-kicker">05 — QUESTIONS</div><h2>Simple answers.<br/><em>No noise.</em></h2></div>
-      <div className="faq-list">{faqs.map(([q,a],i)=><div className={faq===i?"faq-item open":"faq-item"} key={q}><button onClick={()=>setFaq(faq===i?-1:i)}><span><small>0{i+1}</small>{q}</span><ChevronDown size={18}/></button><div className="answer"><p>{a}</p></div></div>)}</div>
-    </section>
+      <section id="quality" className="section quality-section">
+        <div className="quality-copy"><div className="section-label">03 — QUALITY INTELLIGENCE</div><h2>Know what changed.<br/><em>Know why.</em></h2><p>Rivu treats data quality as part of the product experience — not a report you discover after the damage is done.</p><div className="quality-list"><span><b>01</b> Traceable transformations</span><span><b>02</b> Validation before delivery</span><span><b>03</b> Source-aware outputs</span></div></div>
+        <div className="quality-art"><div className="quality-mesh"/><div className="quality-disc"><small>RIVU</small><b>QUALITY<br/>INTELLIGENCE</b></div><i className="q-orbit q1"/><i className="q-orbit q2"/><i className="q-orbit q3"/></div>
+      </section>
 
-    <section className="closing">
-      <div className="closing-grid"/><div className="closing-orb"/>
-      <div className="section-kicker light">RIVU BY WATERTING</div><h2>Your data.<br/><em>Finally ready.</em></h2><p>Turn the messy middle into a reliable intelligence layer.</p><button className="closing-button" onClick={()=>router.push("/login")}>Enter Rivu <ArrowUpRight size={16}/></button><div className="closing-word">RIVU</div>
-    </section>
+      <section id="about" className="about-section">
+        <div className="about-art"><div className="about-shape"/><div className="about-logo">RIVU<small>DATA REFINERY</small></div><span>04 / THE MESSY MIDDLE</span></div>
+        <div className="about-copy"><div className="section-label">BUILT BY WATERTING</div><h2>Data is not a file.<br/><em>It is a system.</em></h2><p>Sources change. Formats drift. Teams add context. Systems disagree. Rivu gives that movement a consistent refinement layer.</p><button className="dark-button" onClick={() => router.push("/login")}>Enter Rivu <span>→</span></button></div>
+      </section>
 
-    <footer><Logo/><span>AI-native data refinery</span><span>© 2026 WaterTing</span><button onClick={()=>jump("top")}>BACK TO TOP ↑</button></footer>
-  </main>;
+      <section className="final-cta">
+        <div className="cta-grid"/><div className="cta-orb"/><div className="section-label light">RIVU BY WATERTING</div><h2>Your data.<br/><em>Finally ready.</em></h2><p>Turn the messy middle into a reliable intelligence layer.</p><button className="light-button" onClick={() => router.push("/login")}>Enter Rivu <ArrowRight/></button><div className="cta-word">RIVU</div>
+      </section>
+
+      <footer className="ts-footer"><Logo/><span>AI-native data refinery</span><span>© 2026 WaterTing</span><button onClick={() => go("top")}>BACK TO TOP ↑</button></footer>
+    </main>
+  );
 }
