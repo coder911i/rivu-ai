@@ -16,6 +16,18 @@ type RefineryPlan={id?:string;summary?:string;dataset_summary?:string;operations
 type PreviewItem={column?:string;op?:string;before?:unknown[];after?:unknown[]};
 type PreviewResponse={previews?:PreviewItem[]};
 
+function apiErrorMessage(data: any, fallback: string): string {
+  const detail = data?.detail;
+  if (typeof detail === "string" && detail.trim()) return detail;
+  if (detail && typeof detail === "object") {
+    if (typeof detail.message === "string" && detail.message.trim()) return detail.message;
+    if (typeof detail.error === "string" && detail.error.trim()) return detail.error;
+    try { return JSON.stringify(detail); } catch { return fallback; }
+  }
+  if (typeof data?.message === "string" && data.message.trim()) return data.message;
+  return fallback;
+}
+
 export default function DatasetPage({params}:{params:{id:string}}){
  const router=useRouter();
  const [profile,setProfile]=useState<DatasetProfile|null>(null),[quality,setQuality]=useState<QualityReport|null>(null),[plan,setPlan]=useState<RefineryPlan|null>(null),[busy,setBusy]=useState(false),[preview,setPreview]=useState<PreviewResponse|null>(null),[running,setRunning]=useState(false),[error,setError]=useState("");
@@ -30,7 +42,7 @@ export default function DatasetPage({params}:{params:{id:string}}){
       setError("Rivu is still processing this dataset…");
       return false;
     }
-    if(!p.ok){const d=await p.json().catch(()=>({}));throw new Error(d.detail?.message||d.detail||"Profile unavailable")}
+    if(!p.ok){const d=await p.json().catch(()=>null);throw new Error(apiErrorMessage(d,"Profile unavailable"))}
     const pd=await p.json();
     setProfile(pd);
     if(q.ok)setQuality(await q.json());
@@ -59,10 +71,10 @@ export default function DatasetPage({params}:{params:{id:string}}){
       }
     );
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new Error(data.detail?.message || data.detail || "AI plan failed");
+      throw new Error(apiErrorMessage(data, "AI plan failed"));
     }
 
     setPlan(data);
@@ -82,8 +94,8 @@ export default function DatasetPage({params}:{params:{id:string}}){
       method: "POST", headers: {...authHeaders(), "Content-Type":"application/json"},
       body: JSON.stringify({plan_id: plan.id})
     });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.detail?.message || d.detail || "Preview failed");
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(apiErrorMessage(d, "Preview failed"));
     setPreview(d);
   } catch (error) {
     setError(error instanceof Error ? error.message : "Preview failed");
@@ -99,14 +111,14 @@ export default function DatasetPage({params}:{params:{id:string}}){
       body: JSON.stringify({plan_id: plan.id})
     });
     const approvalData = await approval.json().catch(() => ({}));
-    if (!approval.ok) throw new Error(approvalData.detail?.message || approvalData.detail || "Plan approval failed");
+    if (!approval.ok) throw new Error(apiErrorMessage(approvalData, "Plan approval failed"));
 
     const r = await authFetch("/datasets/" + params.id + "/transform/execute", {
       method: "POST", headers: {...authHeaders(), "Content-Type":"application/json"},
       body: JSON.stringify({plan_id: plan.id})
     });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.detail?.message || d.detail || "Transformation failed");
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(apiErrorMessage(d, "Transformation failed"));
     setError("Transformation complete. New version v" + d.version.number + " created.");
     await load();
   } catch (error) {
