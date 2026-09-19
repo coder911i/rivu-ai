@@ -16,7 +16,8 @@ type PlanOperation={type:string;column?:string;confidence:number;reason?:string}
 type RefineryPlan={id?:string;summary?:string;dataset_summary?:string;operations?:PlanOperation[]};
 type PreviewItem={column?:string;op?:string;before?:unknown[];after?:unknown[]};
 type PreviewResponse={previews?:PreviewItem[]};
-type ArtifactMap=Record<string,{filename:string;download_url:string;size_bytes:number}>;
+type ArtifactMap=Record<string,{filename:string;download_url:string;size_bytes?:number}>;
+type IntelligenceReport={ai?:{headline:string;summary:string;strengths:string[];risks:string[];actions:string[];data_readiness:number};quality:{overall:number;completeness:number;validity:number;consistency:number;uniqueness:number;integrity:number};issues:any[];sample_rows:Record<string,unknown>[];artifacts?:ArtifactMap;refinement?:{applied:number;failed:number;quality_delta:number}|null};
 
 function apiErrorMessage(data: any, fallback: string): string {
   const detail = data?.detail;
@@ -33,7 +34,7 @@ function apiErrorMessage(data: any, fallback: string): string {
 export default function DatasetPage({params}:{params:Promise<{id:string}>}){
  const router=useRouter();
  const [datasetId,setDatasetId]=useState("");
- const [profile,setProfile]=useState<DatasetProfile|null>(null),[quality,setQuality]=useState<QualityReport|null>(null),[plan,setPlan]=useState<RefineryPlan|null>(null),[busy,setBusy]=useState(false),[preview,setPreview]=useState<PreviewResponse|null>(null),[running,setRunning]=useState(false),[autoRefining,setAutoRefining]=useState(false),[error,setError]=useState(""),[artifacts,setArtifacts]=useState<ArtifactMap|null>(null);
+ const [profile,setProfile]=useState<DatasetProfile|null>(null),[quality,setQuality]=useState<QualityReport|null>(null),[plan,setPlan]=useState<RefineryPlan|null>(null),[busy,setBusy]=useState(false),[preview,setPreview]=useState<PreviewResponse|null>(null),[running,setRunning]=useState(false),[autoRefining,setAutoRefining]=useState(false),[error,setError]=useState(""),[artifacts,setArtifacts]=useState<ArtifactMap|null>(null),[reportData,setReportData]=useState<IntelligenceReport|null>(null);
  const autoRefineStarted=useRef(false);
  const load = useCallback(async () => {
   if (!datasetId) return false;
@@ -50,11 +51,12 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
     }
     const pd=await p.json();
     setProfile(pd);
-    if(q.ok)setQuality(await q.json());
+    if(q.ok){setQuality(await q.json());await loadReport();}
     else throw new Error(await q.text().catch(()=> "Quality analysis unavailable")); 
     return true;
   }catch(e){setError(e instanceof Error?e.message:"Unable to load dataset intelligence.");return false}
  }, [datasetId, router]);
+ async function loadReport(){if(!datasetId)return;try{const r=await authFetch("/reports/"+datasetId+"/dashboard",{headers:authHeaders()});const d=await r.json();if(r.ok){setReportData(d);if(d.artifacts)setArtifacts(d.artifacts)}}catch{}}
  useEffect(()=>{
   let cancelled=false;
   params.then(({id})=>{ if(!cancelled) setDatasetId(id); });
@@ -70,7 +72,7 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
   return()=>{cancelled=true};
 },[load]);
  useEffect(()=>{
-  if(profile && quality && !autoRefineStarted.current && !autoRefining && !plan) {
+  if(profile && quality && profile.dataset.status !== "transformed" && !autoRefineStarted.current && !autoRefining && !plan) {
     autoRefine();
   }
  },[profile,quality,plan,autoRefining,datasetId]);
@@ -114,6 +116,7 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
     setArtifacts(executionData.artifacts||null);
     setError("✓ Data cleaned successfully — refined v"+executionData.version.number+" created. Your report is ready.");
     await load();
+    await loadReport();
   } catch(error) {
     setError(error instanceof Error?error.message:"Automatic refinement failed. You can retry with AI Refinery Plan.");
     autoRefineStarted.current=false;
@@ -258,6 +261,16 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
       <Stat label="Null rate" value={profile.profile.total_null_pct+"%"}/>
      </div>
 
+     <section className={styles.reportPanel}>
+      <div className={styles.panelHead}><div><small>EXECUTIVE DATA REPORT</small><h2>{reportData?.ai?.headline||"Rivu intelligence report"}</h2></div><Sparkles size={18}/></div>
+      <p className={styles.reportSummary}>{reportData?.ai?.summary||"Rivu is generating the measured report from the refined dataset."}</p>
+      {reportData?.ai&&<div className={styles.aiReportGrid}><ReportList title="Strengths" items={reportData.ai.strengths}/><ReportList title="Risks" items={reportData.ai.risks}/><ReportList title="Recommended actions" items={reportData.ai.actions}/></div>}
+      <div className={styles.reportScoreRow}><div><small>DATA READINESS</small><b>{Math.round(reportData?.ai?.data_readiness||Number(profile.version.quality_score||0))}</b>/100</div><div><small>QUALITY</small><b>{reportData?.quality?.overall?.toFixed(1)||profile.version.quality_score||"—"}</b></div><div><small>ISSUES</small><b>{reportData?.issues?.length||0}</b></div></div>
+     </section>
+     {reportData?.sample_rows?.length?<section className={styles.panel}>
+      <div className={styles.panelHead}><div><small>CLEANED OUTPUT</small><h2>What the refined data looks like</h2></div><Table2 size={18}/></div>
+      <div className={styles.previewTable}><div className={styles.previewRow}>{Object.keys(reportData.sample_rows[0]).map(k=><b key={k}>{k}</b>)}</div>{reportData.sample_rows.slice(0,12).map((row,i)=><div className={styles.previewRow} key={i}>{Object.keys(reportData.sample_rows[0]).map(k=><span key={k}>{String(row[k]??"")}</span>)}</div>)}</div>
+     </section>:null}
      <section className={styles.grid}>
       <div className={styles.panel}>
        <div className={styles.panelHead}>
@@ -326,3 +339,4 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
  )
 }
 function Stat({label,value}:{label:string,value:ReactNode}){return <div className={styles.stat}><small>{label}</small><b>{value}</b></div>}
+function ReportList({title,items}:{title:string;items:string[]}){return <div><h4>{title}</h4>{items?.slice(0,4).map((x,i)=><p key={i}>• {x}</p>)}</div>}
