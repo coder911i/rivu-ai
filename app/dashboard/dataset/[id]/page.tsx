@@ -28,14 +28,16 @@ function apiErrorMessage(data: any, fallback: string): string {
   return fallback;
 }
 
-export default function DatasetPage({params}:{params:{id:string}}){
+export default function DatasetPage({params}:{params:Promise<{id:string}>}){
  const router=useRouter();
+ const [datasetId,setDatasetId]=useState("");
  const [profile,setProfile]=useState<DatasetProfile|null>(null),[quality,setQuality]=useState<QualityReport|null>(null),[plan,setPlan]=useState<RefineryPlan|null>(null),[busy,setBusy]=useState(false),[preview,setPreview]=useState<PreviewResponse|null>(null),[running,setRunning]=useState(false),[error,setError]=useState("");
  const load = useCallback(async () => {
+  if (!datasetId) return false;
   try{
     const [p,q]=await Promise.all([
-      authFetch("/datasets/"+params.id+"/profile",{headers:authHeaders()}),
-      authFetch("/datasets/"+params.id+"/quality",{headers:authHeaders()})
+      authFetch("/datasets/"+datasetId+"/profile",{headers:authHeaders()}),
+      authFetch("/datasets/"+datasetId+"/quality",{headers:authHeaders()})
     ]);
     if(p.status===401||q.status===401){router.push("/login");return}
     if(p.status===202||q.status===202){
@@ -48,7 +50,12 @@ export default function DatasetPage({params}:{params:{id:string}}){
     if(q.ok)setQuality(await q.json());
     return true;
   }catch(e){setError(e instanceof Error?e.message:"Unable to load dataset intelligence.");return false}
- }, [params.id, router]);
+ }, [datasetId, router]);
+ useEffect(()=>{
+  let cancelled=false;
+  params.then(({id})=>{ if(!cancelled) setDatasetId(id); });
+  return()=>{cancelled=true};
+ }, [params]);
  useEffect(()=>{
   let cancelled=false;
   const poll=async()=>{
@@ -64,7 +71,7 @@ export default function DatasetPage({params}:{params:{id:string}}){
 
   try {
     const response = await fetch(
-      API + "/datasets/" + params.id + "/ai-plan",
+      API + "/datasets/" + datasetId + "/ai-plan",
       {
         method: "POST",
         headers: authHeaders(),
@@ -90,7 +97,7 @@ export default function DatasetPage({params}:{params:{id:string}}){
   if (!plan?.id) return;
   setBusy(true); setError("");
   try {
-    const r = await authFetch("/datasets/" + params.id + "/transform/preview", {
+    const r = await authFetch("/datasets/" + datasetId + "/transform/preview", {
       method: "POST", headers: {...authHeaders(), "Content-Type":"application/json"},
       body: JSON.stringify({plan_id: plan.id})
     });
@@ -106,14 +113,14 @@ export default function DatasetPage({params}:{params:{id:string}}){
   if (!plan?.id || !window.confirm("Execute this approved refinement plan and create a new dataset version?")) return;
   setRunning(true); setError("");
   try {
-    const approval = await authFetch("/datasets/" + params.id + "/transform/approve", {
+    const approval = await authFetch("/datasets/" + datasetId + "/transform/approve", {
       method: "POST", headers: {...authHeaders(), "Content-Type":"application/json"},
       body: JSON.stringify({plan_id: plan.id})
     });
     const approvalData = await approval.json().catch(() => ({}));
     if (!approval.ok) throw new Error(apiErrorMessage(approvalData, "Plan approval failed"));
 
-    const r = await authFetch("/datasets/" + params.id + "/transform/execute", {
+    const r = await authFetch("/datasets/" + datasetId + "/transform/execute", {
       method: "POST", headers: {...authHeaders(), "Content-Type":"application/json"},
       body: JSON.stringify({plan_id: plan.id})
     });
@@ -128,13 +135,13 @@ export default function DatasetPage({params}:{params:{id:string}}){
 
  async function report() {
   try {
-    const response = await authFetch("/reports/" + params.id + "/pdf", { headers: authHeaders() });
+    const response = await authFetch("/reports/" + datasetId + "/pdf", { headers: authHeaders() });
     if (!response.ok) throw new Error("Could not generate report");
     const blob = await response.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "rivu-report-" + params.id + ".pdf";
+    a.download = "rivu-report-" + datasetId + ".pdf";
     a.click();
     URL.revokeObjectURL(url);
   } catch (error) {
