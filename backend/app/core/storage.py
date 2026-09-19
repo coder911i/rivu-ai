@@ -14,10 +14,33 @@ logger = structlog.get_logger(__name__)
 
 
 def _get_boto_config():
+    """Build a normalized S3 client configuration.
+
+    S3-compatible providers such as Backblaze B2 can be sensitive to
+    whitespace/trailing slashes and virtual-host addressing. Normalize the
+    endpoint here so production environment values work consistently.
+    """
+    endpoint = (settings.S3_ENDPOINT or "").strip().rstrip("/")
+
+    # Backblaze B2 is S3-compatible but is most reliable with path-style
+    # addressing when using a custom endpoint.
+    is_backblaze = "backblazeb2.com" in endpoint.lower()
+    addressing_style = "path" if (settings.S3_FORCE_PATH_STYLE or is_backblaze) else "auto"
+
+    logger.info(
+        "storage_client_config",
+        endpoint=endpoint,
+        region=settings.S3_REGION,
+        addressing_style=addressing_style,
+    )
+
     return {
-        "endpoint_url": settings.S3_ENDPOINT,
+        "endpoint_url": endpoint,
         "use_ssl": settings.S3_USE_SSL,
-        "config": boto3.session.Config(signature_version="s3v4", s3={"addressing_style": "path" if settings.S3_FORCE_PATH_STYLE else "auto"}),
+        "config": boto3.session.Config(
+            signature_version="s3v4",
+            s3={"addressing_style": addressing_style},
+        ),
         "aws_access_key_id": settings.S3_ACCESS_KEY,
         "aws_secret_access_key": settings.S3_SECRET_KEY,
         "region_name": settings.S3_REGION,
