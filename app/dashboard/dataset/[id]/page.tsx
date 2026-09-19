@@ -40,15 +40,16 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
       authFetch("/datasets/"+datasetId+"/profile",{headers:authHeaders()}),
       authFetch("/datasets/"+datasetId+"/quality",{headers:authHeaders()})
     ]);
-    if(p.status===401||q.status===401){router.push("/login");return}
+    if(p.status===401||q.status===401){router.push("/login");return false}
+    if(!p.ok){const d=await p.json().catch(()=>null);throw new Error(apiErrorMessage(d,"Profile unavailable"))}
     if(p.status===202||q.status===202){
       setError("Rivu is still processing this dataset…");
       return false;
     }
-    if(!p.ok){const d=await p.json().catch(()=>null);throw new Error(apiErrorMessage(d,"Profile unavailable"))}
     const pd=await p.json();
     setProfile(pd);
     if(q.ok)setQuality(await q.json());
+    else throw new Error(await q.text().catch(()=> "Quality analysis unavailable")); 
     return true;
   }catch(e){setError(e instanceof Error?e.message:"Unable to load dataset intelligence.");return false}
  }, [datasetId, router]);
