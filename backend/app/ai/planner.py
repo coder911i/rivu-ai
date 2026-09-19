@@ -68,6 +68,7 @@ Allowed operations:
 - flag_duplicates: Add a boolean column flagging duplicate rows
 - flag_outliers: Add a boolean column flagging statistical outliers
 - replace_value: Replace specific value with another
+- regex_replace: Replace text matching a regex pattern; parameters must include pattern and replacement
 - clip_numeric: Clip numeric values to [min, max] range
 - drop_column: Drop a column
 
