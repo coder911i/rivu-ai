@@ -16,6 +16,7 @@ type PlanOperation={type:string;column?:string;confidence:number;reason?:string}
 type RefineryPlan={id?:string;summary?:string;dataset_summary?:string;operations?:PlanOperation[]};
 type PreviewItem={column?:string;op?:string;before?:unknown[];after?:unknown[]};
 type PreviewResponse={previews?:PreviewItem[]};
+type ArtifactMap=Record<string,{filename:string;download_url:string;size_bytes:number}>;
 
 function apiErrorMessage(data: any, fallback: string): string {
   const detail = data?.detail;
@@ -32,7 +33,7 @@ function apiErrorMessage(data: any, fallback: string): string {
 export default function DatasetPage({params}:{params:Promise<{id:string}>}){
  const router=useRouter();
  const [datasetId,setDatasetId]=useState("");
- const [profile,setProfile]=useState<DatasetProfile|null>(null),[quality,setQuality]=useState<QualityReport|null>(null),[plan,setPlan]=useState<RefineryPlan|null>(null),[busy,setBusy]=useState(false),[preview,setPreview]=useState<PreviewResponse|null>(null),[running,setRunning]=useState(false),[autoRefining,setAutoRefining]=useState(false),[error,setError]=useState("");
+ const [profile,setProfile]=useState<DatasetProfile|null>(null),[quality,setQuality]=useState<QualityReport|null>(null),[plan,setPlan]=useState<RefineryPlan|null>(null),[busy,setBusy]=useState(false),[preview,setPreview]=useState<PreviewResponse|null>(null),[running,setRunning]=useState(false),[autoRefining,setAutoRefining]=useState(false),[error,setError]=useState(""),[artifacts,setArtifacts]=useState<ArtifactMap|null>(null);
  const autoRefineStarted=useRef(false);
  const load = useCallback(async () => {
   if (!datasetId) return false;
@@ -110,6 +111,7 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
     const executionData=await execution.json().catch(()=>({}));
     if(!execution.ok) throw new Error(apiErrorMessage(executionData,"Data refinement failed"));
 
+    setArtifacts(executionData.artifacts||null);
     setError("✓ Data cleaned successfully — refined v"+executionData.version.number+" created. Your report is ready.");
     await load();
   } catch(error) {
@@ -182,6 +184,7 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
     });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(apiErrorMessage(d, "Transformation failed"));
+    setArtifacts(d.artifacts||null);
     setError("Transformation complete. New version v" + d.version.number + " created.");
     await load();
   } catch (error) {
@@ -236,6 +239,16 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
      </div>
 
      {error&&<div className={styles.error}>{error}</div>}
+     {artifacts&&<div className={styles.actions}>
+      {["csv","xlsx","json","parquet"].map((key)=>
+       artifacts[key]&&<a key={key} href={artifacts[key].download_url} download={artifacts[key].filename} className={styles.ai}>
+        <Download size={14}/> {key.toUpperCase()}
+       </a>
+      )}
+      {artifacts["schema.json"]&&<a href={artifacts["schema.json"].download_url} download={artifacts["schema.json"].filename} className={styles.ai}>
+       <Download size={14}/> SCHEMA
+      </a>}
+     </div>}
 
      <div className={styles.scoreRow}>
       <div className={styles.score}><small>DATA HEALTH</small><b>{profile.version.quality_score??"—"}</b><span>/ 100</span></div>
