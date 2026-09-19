@@ -12,6 +12,7 @@ from app.models.organization import Membership
 from app.models.dataset import DataSource, DatasetVersion
 from app.models.profile import DataProfile
 from app.models.quality import QualityReport, QualityIssue
+from app.models.transformation import TransformationRun
 
 router=APIRouter()
 
@@ -68,6 +69,11 @@ async def report_pdf(
     issues = (await db.execute(
         select(QualityIssue).where(QualityIssue.quality_report_id == quality.id)
     )).scalars().all() if quality else []
+    latest_run = (await db.execute(
+        select(TransformationRun).where(
+            TransformationRun.output_version_id == version.id
+        ).order_by(TransformationRun.completed_at.desc())
+    )).scalars().first() if version else None
 
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, rightMargin=16*mm, leftMargin=16*mm, topMargin=16*mm, bottomMargin=16*mm)
@@ -96,6 +102,21 @@ async def report_pdf(
         table = Table(profile_rows, colWidths=[55*mm, 55*mm])
         table.setStyle(TableStyle([("GRID",(0,0),(-1,-1),0.4,colors.HexColor("#cbd5e1")),("FONTNAME",(0,0),(-1,-1),"Helvetica"),("FONTSIZE",(0,0),(-1,-1),9)]))
         story += [table, Spacer(1,10)]
+    if latest_run:
+        story.append(Paragraph("Refinement summary", styles["Heading2"]))
+        run_rows = [
+            ["Status", str(latest_run.status)],
+            ["Operations applied", str(latest_run.operations_applied)],
+            ["Operations skipped", str(latest_run.operations_skipped)],
+            ["Operations failed", str(latest_run.operations_failed)],
+            ["Rows in refined output", str(latest_run.rows_modified or 0)],
+            ["Quality change", f"{float(latest_run.quality_delta or 0):+.1f} points"],
+            ["Duration", f"{int(latest_run.duration_ms or 0)} ms"],
+        ]
+        table = Table(run_rows, colWidths=[55*mm, 55*mm])
+        table.setStyle(TableStyle([("GRID",(0,0),(-1,-1),0.4,colors.HexColor("#cbd5e1")),("FONTSIZE",(0,0),(-1,-1),9)]))
+        story += [table, Spacer(1,10)]
+
     if quality:
         story.append(Paragraph("Quality score", styles["Heading2"]))
         score_rows = [
