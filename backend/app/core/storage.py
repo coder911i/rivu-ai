@@ -21,6 +21,9 @@ def _get_boto_config():
     endpoint here so production environment values work consistently.
     """
     endpoint = (settings.S3_ENDPOINT or "").strip().rstrip("/")
+    access_key = (settings.S3_ACCESS_KEY or "").strip()
+    secret_key = (settings.S3_SECRET_KEY or "").strip()
+    region = (settings.S3_REGION or "").strip()
 
     # Backblaze B2 is S3-compatible but is most reliable with path-style
     # addressing when using a custom endpoint.
@@ -41,9 +44,9 @@ def _get_boto_config():
             signature_version="s3v4",
             s3={"addressing_style": addressing_style},
         ),
-        "aws_access_key_id": settings.S3_ACCESS_KEY,
-        "aws_secret_access_key": settings.S3_SECRET_KEY,
-        "region_name": settings.S3_REGION,
+        "aws_access_key_id": access_key,
+        "aws_secret_access_key": secret_key,
+        "region_name": region,
     }
 
 
@@ -52,7 +55,7 @@ class StorageClient:
 
     def __init__(self):
         self._session = aioboto3.Session()
-        self.bucket = settings.S3_BUCKET
+        self.bucket = (settings.S3_BUCKET or "").strip()
 
     async def upload_file(
         self,
