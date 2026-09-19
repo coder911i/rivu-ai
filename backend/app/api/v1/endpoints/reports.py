@@ -94,7 +94,7 @@ async def report_pdf(
             ["Null %", f"{float(profile.total_null_pct or 0):.2f}%"],
         ]
         table = Table(profile_rows, colWidths=[55*mm, 55*mm])
-        table.setStyle(TableStyle([("GRID",(0,0),(-1,-1),0.4,colors.HexColor("#cbd5e1")),("FONTNAME",(0,0),(-1,-1),"Helvetica"),("FONTSIZE",(0,0),(-1,-1),9))]))
+        table.setStyle(TableStyle([("GRID",(0,0),(-1,-1),0.4,colors.HexColor("#cbd5e1")),("FONTNAME",(0,0),(-1,-1),"Helvetica"),("FONTSIZE",(0,0),(-1,-1),9)]))
         story += [table, Spacer(1,10)]
     if quality:
         story.append(Paragraph("Quality score", styles["Heading2"]))
