@@ -3,6 +3,7 @@ import { ChangeEvent, useCallback, useEffect, useState, type ReactNode } from "r
 import { Activity, ArrowUpRight, Database, FileText, FolderPlus, LogOut, Plus, RefreshCw, ShieldCheck, Sparkles, UploadCloud, X } from "lucide-react";
 import styles from "./dashboard.module.css";
 import { authFetch } from "../../lib/api";
+import BrandLogo from "../../lib/BrandLogo";
 
 const API=process.env.NEXT_PUBLIC_API_URL||"http://127.0.0.1:8000/api/v1";
 type Project={id:string;name:string;description?:string;dataset_count:number;color:string};
@@ -31,7 +32,7 @@ export default function Dashboard(){
     const poll=async()=>{attempts++; await selectProject(selected); if(attempts<20){setTimeout(poll,1500)}else{setMessage("Processing is taking longer than usual. You can open the dataset when it is ready.")}};
     setTimeout(poll,1200)}catch(e){setMessage(e instanceof Error?e.message:"Upload failed")}finally{setUploading(false);e.target.value=""}}
  function logout(){localStorage.clear();location.href="/login"}
- return <main className={styles.app}><aside><div className={styles.brand}><b>R</b> Rivu<span>ai</span></div><div className={styles.nav}><a className={styles.active}><Activity size={17}/>Overview</a><a><Database size={17}/>Datasets</a><a><Sparkles size={17}/>AI Intelligence</a><a><FileText size={17}/>Reports</a><a><ShieldCheck size={17}/>Security</a></div><button className={styles.logout} onClick={logout}><LogOut size={16}/>Sign out</button></aside>
+ return <main className={styles.app}><aside><BrandLogo href="/" className={styles.brand}/><div className={styles.nav}><a className={styles.active}><Activity size={17}/>Overview</a><a><Database size={17}/>Datasets</a><a><Sparkles size={17}/>AI Intelligence</a><a><FileText size={17}/>Reports</a><a><ShieldCheck size={17}/>Security</a></div><button className={styles.logout} onClick={logout}><LogOut size={16}/>Sign out</button></aside>
  <section className={styles.main}><header><div><div className={styles.eyebrow}>WORKSPACE / DATA INTELLIGENCE</div><h1>Good data starts here.</h1><p>Refine messy information into a verified intelligence layer.</p></div><div className={styles.headerActions}><button onClick={load}><RefreshCw size={15}/></button><button className={styles.primary} onClick={()=>setShowNew(true)}><Plus size={16}/> New project</button></div></header>
  {error&&<div className={styles.error}>{error}</div>}<div className={styles.metrics}><Metric icon={<Database/>} label="Projects" value={projects.length}/><Metric icon={<FileText/>} label="Datasets" value={projects.reduce((a,p)=>a+p.dataset_count,0)}/><Metric icon={<Sparkles/>} label="AI refinery" value="Ready"/><Metric icon={<ShieldCheck/>} label="Workspace" value="Protected"/></div>
  <div className={styles.body}><div className={styles.projects}><div className={styles.sectionHead}><h2>Projects</h2><span>{projects.length} total</span></div>{loading?<div className={styles.empty}>Loading workspace…</div>:projects.map(p=><button className={selected?.id===p.id?styles.projectSelected:styles.project} key={p.id} onClick={()=>selectProject(p)}><span className={styles.projectIcon} style={{background:p.color||"#6d5ce7"}}>R</span><span><b>{p.name}</b><small>{p.dataset_count} datasets</small></span><ArrowUpRight size={15}/></button>)}{!projects.length&&!loading&&<div className={styles.empty}>Create your first data project.</div>}</div>
