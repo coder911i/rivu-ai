@@ -132,6 +132,24 @@ async def report_pdf(
         ).order_by(TransformationRun.completed_at.desc())
     )).scalars().first() if version else None
 
+    ai_summary="Rivu measured the dataset quality and refinement history from the current version."
+    try:
+        ai_prompt=f"""Write a concise executive summary for a data quality PDF. Use only these facts. Mention the current quality score, key risks, and refinement result if present. Do not invent facts.
+Dataset: {ds.name}
+Rows: {profile.row_count if profile else 0}
+Columns: {profile.column_count if profile else 0}
+Quality: {float(quality.overall_score) if quality else 0}
+Completeness: {float(quality.completeness_score or 0) if quality else 0}
+Validity: {float(quality.validity_score or 0) if quality else 0}
+Consistency: {float(quality.consistency_score or 0) if quality else 0}
+Uniqueness: {float(quality.uniqueness_score or 0) if quality else 0}
+Issues: {len(issues)}
+Refinement: {{"applied": latest_run.operations_applied, "quality_delta": float(latest_run.quality_delta or 0)} if latest_run else "not available"}"""
+        ai_resp=await get_ai_provider().complete([AIMessage("system","You are Rivu's senior data analyst. Return one professional paragraph."),AIMessage("user",ai_prompt)],temperature=0.1,max_tokens=500)
+        ai_summary=ai_resp.content.strip()
+    except Exception:
+        pass
+
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, rightMargin=16*mm, leftMargin=16*mm, topMargin=16*mm, bottomMargin=16*mm)
     styles = getSampleStyleSheet()
@@ -144,6 +162,9 @@ async def report_pdf(
         Paragraph(f"<b>Dataset:</b> {ds.name}", body),
         Paragraph(f"<b>Source:</b> {ds.original_filename}", body),
         Paragraph(f"<b>Version:</b> {ds.current_version}", body),
+        Spacer(1, 8),
+        Paragraph("<b>AI executive summary</b>", styles["Heading2"]),
+        Paragraph(ai_summary, body),
         Spacer(1, 10),
     ]
     if profile:
