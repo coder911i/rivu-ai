@@ -115,6 +115,7 @@ class TransformationEngine:
             "flag_duplicates": self._flag_duplicates,
             "flag_outliers": self._flag_outliers,
             "replace_value": self._replace_value,
+            "regex_replace": self._regex_replace,
             "clip_numeric": self._clip_numeric,
             "drop_column": self._drop_column,
             "rename_column": self._rename_column,
@@ -335,6 +336,20 @@ class TransformationEngine:
             return {"applied": False, "message": f"Could not flag outliers: {e}"}
 
     # ── Value replacement ─────────────────────
+
+    def _regex_replace(self, column: str | None, params: dict) -> dict:
+        col = self._require_column(column)
+        pattern = params.get("pattern")
+        replacement = params.get("replacement", "")
+        if not isinstance(pattern, str) or not pattern:
+            return {"applied": False, "message": "regex_replace requires a non-empty pattern"}
+        try:
+            self._df = self._df.with_columns(
+                pl.col(col).cast(pl.Utf8).str.replace_all(pattern, str(replacement)).alias(col)
+            )
+        except Exception as exc:
+            raise ProcessingError(f"Invalid regex for '{col}': {exc}") from exc
+        return {"applied": True, "message": f"Applied regex replacement in '{col}'"}
 
     def _replace_value(self, column: str | None, params: dict) -> dict:
         col = self._require_column(column)
