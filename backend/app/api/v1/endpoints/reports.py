@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_session
+from app.core.storage import get_storage
 from app.core.security import get_current_user
 from app.models.user import User
 from app.models.organization import Membership
@@ -63,6 +64,15 @@ async def report_dashboard(dataset_id: UUID, current_user: User=Depends(get_curr
     }
     if latest_run:
         payload["refinement"]={"status":latest_run.status,"applied":latest_run.operations_applied,"skipped":latest_run.operations_skipped,"failed":latest_run.operations_failed,"rows":latest_run.rows_modified,"quality_before":float(latest_run.quality_before or 0),"quality_after":float(latest_run.quality_after or 0),"quality_delta":float(latest_run.quality_delta or 0),"duration_ms":latest_run.duration_ms}
+    payload["artifacts"]={}
+    if latest_run and version.version_number > 1:
+        root=f"orgs/{org}/projects/{ds.project_id}/datasets/{ds.id}/v{version.version_number}"
+        for ext in ("csv","xlsx","json","parquet","schema.json"):
+            key=f"{root}/{ds.name}_v{version.version_number}.{ext}"
+            try:
+                payload["artifacts"][ext]={"filename":key.rsplit("/",1)[-1],"download_url":await get_storage().get_download_url(key,expires_in=900)}
+            except Exception:
+                pass
     ai_prompt = f"""Create an executive data intelligence summary for this Rivu report. Use ONLY the supplied facts. Do not invent numbers. Return JSON with keys: headline, summary, strengths (array of strings), risks (array of strings), actions (array of strings), data_readiness (number 0-100). Keep each item concise.
 FACTS:
 {json.dumps({"dataset":payload["dataset"],"profile":payload["profile"],"quality":payload["quality"],"issues":payload["issues"][:20],"refinement":payload["refinement"],"columns":payload["columns"][:40]},default=str)}"""
