@@ -42,8 +42,14 @@ class TransformationEngine:
 
     def __init__(self, df: pl.DataFrame):
         self._df = df.clone()  # never mutate original
+        self._original_schema = dict(df.schema)
         self._log: list[dict] = []
         self._modified_columns: set[str] = set()
+        self._type_changing_ops = {
+            "standardize_date", "standardize_datetime", "coerce_numeric",
+            "coerce_boolean", "normalize_currency", "normalize_phone",
+            "normalize_email", "normalize_category",
+        }
 
     def execute_operations(self, operations: list[dict]) -> dict:
         """
@@ -77,6 +83,7 @@ class TransformationEngine:
                     "error": str(e), "applied": False
                 })
 
+        self._restore_safe_schema()
         duration_ms = round((time.perf_counter() - start) * 1000)
         logger.info(
             "transformation_complete",
@@ -91,7 +98,19 @@ class TransformationEngine:
             "ops_skipped": ops_skipped,
             "ops_failed": ops_failed,
             "duration_ms": duration_ms,
+            "schema_before": {name: str(dtype) for name, dtype in self._original_schema.items()},
+            "schema_after": {name: str(dtype) for name, dtype in self._df.schema.items()},
         }
+
+    def _restore_safe_schema(self) -> None:
+        changed = {e.get("column") for e in self._log if e.get("status") == "ok" and e.get("applied") and e.get("op") in self._type_changing_ops}
+        for name, dtype in self._original_schema.items():
+            if name not in self._df.columns or name in changed or self._df.schema.get(name) == dtype:
+                continue
+            try:
+                self._df = self._df.with_columns(pl.col(name).cast(dtype, strict=False).alias(name))
+            except Exception:
+                logger.warning("schema_restore_skipped", column=name, target_dtype=str(dtype))
 
     def _execute_single(self, op_type: str, column: str | None, params: dict, op: dict) -> dict:
         """Dispatch to the correct transformation function."""
@@ -180,14 +199,26 @@ class TransformationEngine:
 
         vals = self._df[col].cast(pl.Utf8).to_list()
         standardized = [_parse_date_flexible(v) for v in vals]
-        self._df = self._df.with_columns(pl.Series(col, standardized, dtype=pl.Utf8))
+        parsed = []
+        for value in standardized:
+            try:
+                parsed.append(datetime.strptime(value, TARGET_DATE_FORMAT).date() if value else None)
+            except Exception:
+                parsed.append(None)
+        self._df = self._df.with_columns(pl.Series(col, parsed, dtype=pl.Date))
         return {"applied": True, "message": f"Standardized dates in '{col}' to ISO 8601"}
 
     def _standardize_datetime(self, column: str | None, params: dict) -> dict:
         col = self._require_column(column)
         vals = self._df[col].cast(pl.Utf8).to_list()
         standardized = [_parse_datetime_flexible(v) for v in vals]
-        self._df = self._df.with_columns(pl.Series(col, standardized, dtype=pl.Utf8))
+        parsed = []
+        for value in standardized:
+            try:
+                parsed.append(datetime.strptime(value, TARGET_DATETIME_FORMAT) if value else None)
+            except Exception:
+                parsed.append(None)
+        self._df = self._df.with_columns(pl.Series(col, parsed, dtype=pl.Datetime))
         return {"applied": True, "message": f"Standardized datetimes in '{col}'"}
 
     # ── Numeric operations ────────────────────
@@ -196,7 +227,11 @@ class TransformationEngine:
         col = self._require_column(column)
         vals = self._df[col].cast(pl.Utf8).to_list()
         numeric = [_parse_numeric(v) for v in vals]
-        self._df = self._df.with_columns(pl.Series(col, numeric, dtype=pl.Float64))
+        original = self._original_schema.get(col)
+        target = pl.Float64
+        if original in {pl.Int8, pl.Int16, pl.Int32, pl.Int64, pl.UInt8, pl.UInt16, pl.UInt32, pl.UInt64} and all(v is None or float(v).is_integer() for v in numeric):
+            target = original
+        self._df = self._df.with_columns(pl.Series(col, numeric, dtype=target))
         return {"applied": True, "message": f"Coerced '{col}' to numeric"}
 
     def _normalize_currency(self, column: str | None, params: dict) -> dict:
@@ -217,12 +252,15 @@ class TransformationEngine:
         col = self._require_column(column)
         low = params.get("min")
         high = params.get("max")
+        original_dtype = self._df.schema.get(col)
         expr = pl.col(col).cast(pl.Float64)
         if low is not None:
             expr = expr.clip(lower_bound=float(low))
         if high is not None:
             expr = expr.clip(upper_bound=float(high))
         self._df = self._df.with_columns(expr.alias(col))
+        if original_dtype is not None and original_dtype.is_numeric():
+            self._df = self._df.with_columns(pl.col(col).cast(original_dtype, strict=False).alias(col))
         return {"applied": True, "message": f"Clipped '{col}' to [{low}, {high}]"}
 
     # ── Contact normalization ─────────────────
