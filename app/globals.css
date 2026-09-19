@@ -1,4 +1,3 @@
-@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 :root{--bg:#f5f3ff;--ink:#0a0a0a;--purple:#a855f7;--deep:#2d1b3d;--lime:#bfff0b;--muted:#59606d;--line:#e5e2ed;--white:#fff}
