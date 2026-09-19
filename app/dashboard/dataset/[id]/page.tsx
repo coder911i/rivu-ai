@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect,useState, type ReactNode } from "react";
+import { useCallback, useEffect,useRef,useState, type ReactNode } from "react";
 import { ArrowLeft, BrainCircuit, CheckCircle2, Download, Loader2, ShieldCheck, Sparkles, Table2, WandSparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import styles from "./dataset.module.css";
@@ -32,7 +32,8 @@ function apiErrorMessage(data: any, fallback: string): string {
 export default function DatasetPage({params}:{params:Promise<{id:string}>}){
  const router=useRouter();
  const [datasetId,setDatasetId]=useState("");
- const [profile,setProfile]=useState<DatasetProfile|null>(null),[quality,setQuality]=useState<QualityReport|null>(null),[plan,setPlan]=useState<RefineryPlan|null>(null),[busy,setBusy]=useState(false),[preview,setPreview]=useState<PreviewResponse|null>(null),[running,setRunning]=useState(false),[error,setError]=useState("");
+ const [profile,setProfile]=useState<DatasetProfile|null>(null),[quality,setQuality]=useState<QualityReport|null>(null),[plan,setPlan]=useState<RefineryPlan|null>(null),[busy,setBusy]=useState(false),[preview,setPreview]=useState<PreviewResponse|null>(null),[running,setRunning]=useState(false),[autoRefining,setAutoRefining]=useState(false),[error,setError]=useState("");
+ const autoRefineStarted=useRef(false);
  const load = useCallback(async () => {
   if (!datasetId) return false;
   try{
@@ -67,6 +68,55 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
   poll();
   return()=>{cancelled=true};
 },[load]);
+ useEffect(()=>{
+  if(profile && quality && !autoRefineStarted.current && !autoRefining && !plan) {
+    autoRefine();
+  }
+ },[profile,quality,plan,autoRefining,datasetId]);
+ async function autoRefine() {
+  if (!datasetId || autoRefineStarted.current || autoRefining) return;
+  autoRefineStarted.current=true;
+  setAutoRefining(true);
+  setBusy(true);
+  setError("");
+  try {
+    // Rivu's upload flow is a refinery: once profiling is complete, generate,
+    // approve, and execute the AI plan against a new immutable dataset version.
+    const planResponse=await authFetch("/datasets/"+datasetId+"/ai-plan",{
+      method:"POST",headers:authHeaders()
+    });
+    const planData=await planResponse.json().catch(()=>({}));
+    if(!planResponse.ok) throw new Error(apiErrorMessage(planData,"AI refinement plan failed"));
+    if(!planData.id || !Array.isArray(planData.operations) || planData.operations.length===0){
+      throw new Error("Rivu could not find any safe cleaning operations for this dataset.");
+    }
+    setPlan(planData);
+
+    const approval=await authFetch("/datasets/"+datasetId+"/transform/approve",{
+      method:"POST",headers:{...authHeaders(),"Content-Type":"application/json"},
+      body:JSON.stringify({plan_id:planData.id})
+    });
+    const approvalData=await approval.json().catch(()=>({}));
+    if(!approval.ok) throw new Error(apiErrorMessage(approvalData,"Refinement approval failed"));
+
+    const execution=await authFetch("/datasets/"+datasetId+"/transform/execute",{
+      method:"POST",headers:{...authHeaders(),"Content-Type":"application/json"},
+      body:JSON.stringify({plan_id:planData.id})
+    });
+    const executionData=await execution.json().catch(()=>({}));
+    if(!execution.ok) throw new Error(apiErrorMessage(executionData,"Data refinement failed"));
+
+    setError("✓ Data cleaned successfully — refined v"+executionData.version.number+" created. Your report is ready.");
+    await load();
+  } catch(error) {
+    setError(error instanceof Error?error.message:"Automatic refinement failed. You can retry with AI Refinery Plan.");
+    autoRefineStarted.current=false;
+  } finally {
+    setBusy(false);
+    setAutoRefining(false);
+  }
+ }
+
  async function ai() {
   setBusy(true);
   setError("");
