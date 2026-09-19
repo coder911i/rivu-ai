@@ -177,7 +177,7 @@ async def execute_plan(
         buf = io.BytesIO(); output_df.write_parquet(buf); return buf.getvalue()
     def make_xlsx():
         import pandas as pd
-        buf = io.BytesIO(); output_df.to_pandas().to_excel(buf, index=False, engine="openpyxl"); return buf.getvalue()
+        buf = io.BytesIO(); pd.DataFrame(output_df.to_dicts()).to_excel(buf, index=False, engine="openpyxl"); return buf.getvalue()
 
     schema_payload = {
         "version": next_version,
