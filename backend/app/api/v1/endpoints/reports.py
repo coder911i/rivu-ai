@@ -133,6 +133,12 @@ async def report_pdf(
     )).scalars().first() if version else None
 
     ai_summary="Rivu measured the dataset quality and refinement history from the current version."
+    refinement_summary = (
+        f"applied={latest_run.operations_applied}, "
+        f"quality_delta={float(latest_run.quality_delta or 0)}"
+        if latest_run
+        else "not available"
+    )
     try:
         ai_prompt=f"""Write a concise executive summary for a data quality PDF. Use only these facts. Mention the current quality score, key risks, and refinement result if present. Do not invent facts.
 Dataset: {ds.name}
@@ -144,7 +150,7 @@ Validity: {float(quality.validity_score or 0) if quality else 0}
 Consistency: {float(quality.consistency_score or 0) if quality else 0}
 Uniqueness: {float(quality.uniqueness_score or 0) if quality else 0}
 Issues: {len(issues)}
-Refinement: {{"applied": latest_run.operations_applied, "quality_delta": float(latest_run.quality_delta or 0)} if latest_run else "not available"}"""
+Refinement: {refinement_summary}"""
         ai_resp=await get_ai_provider().complete([AIMessage("system","You are Rivu's senior data analyst. Return one professional paragraph."),AIMessage("user",ai_prompt)],temperature=0.1,max_tokens=500)
         ai_summary=ai_resp.content.strip()
     except Exception:
