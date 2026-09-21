@@ -1,112 +1,110 @@
-# Rivu by WaterTing
+# Rivu AI — Production Data Refinery
 
-**Turn messy data into production-ready intelligence.**
+**Rivu AI** turns raw customer data into validated, explainable, decision-ready datasets and intelligence.
 
-Rivu is an AI-native Data Refinery that takes raw, inconsistent, and unstructured datasets and transforms them into clean, validated, structured, and analytically ready data intelligence.
+> **Deployment model:** hosted web application. Runtime secrets live in the deployment platform, never in Git.
 
----
+## Product flow
 
-## The Pipeline
+`Upload → Validate → Profile → Quality → AI Plan → Review → Deterministic Transform → Re-profile → Analytics → Report → Export`
 
-```
-RAW DATA
-  → UNDERSTANDING
-  → QUALITY ANALYSIS
-  → CLEANING
-  → NORMALIZATION
-  → VALIDATION
-  → STRUCTURING
-  → ANALYTICS
-  → DATA INTELLIGENCE
-```
+The LLM does **not** modify customer data. It proposes an allow-listed transformation plan; the deterministic refinery engine executes approved operations and creates an immutable new dataset version.
 
----
-
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Frontend | Next.js 14, TypeScript, Tailwind CSS |
-| Backend | Python, FastAPI, Polars |
-| Database | Neon PostgreSQL |
-| AI | Groq (Llama 3.3 70B) with provider abstraction |
-| Storage | S3-compatible (MinIO for local dev) |
-| Auth | JWT + bcrypt |
-
----
-
-## Repository Structure
+## Repository
 
 ```
-rivu/
-  frontend/        Next.js application
-  backend/         FastAPI backend
-  db/              SQL schema + migrations
-  docs/            Architecture & API docs
-  scripts/         Dev & deployment scripts
-  .env.example     Environment variable template
-  docker-compose.yml  Local dev services
+app/                         Next.js web application
+lib/                         shared frontend API/branding helpers
+backend/app/                 FastAPI API + refinery engine
+backend/alembic/             production database migrations
+backend/tests/               backend unit/integration tests
+.github/workflows/           build, security and CI gates
+docs/                        architecture, security and load-readiness
+db/                          legacy/reference SQL schema
 ```
 
----
+## Production architecture
 
-## Quick Start
+- **Web:** Next.js behind CDN/edge caching.
+- **API:** FastAPI/Uvicorn, horizontally replicated.
+- **Database:** PostgreSQL/Neon with pooling and Alembic migrations.
+- **Object storage:** private S3-compatible bucket; short-lived signed exports.
+- **Refinery:** Polars deterministic transformations.
+- **AI:** provider abstraction; compact profiling/quality context rather than raw full files.
+- **Workers:** CPU-heavy profiling/refinement and AI calls must run outside request processes.
+- **Observability:** structured logs, health checks, security scanning and load-test gates.
 
-### Prerequisites
+FastAPI's deployment guidance treats replication, memory, startup work and migrations as separate production concerns. citeturn8search0turn8search3
 
-- Python 3.11+
-- Node.js 18+
-- Docker (for local PostgreSQL + MinIO)
+## Security baseline
 
-### Setup
+- Runtime `.env` files are ignored by Git.
+- Production schema mutation is migration-driven.
+- JWT verification requires `sub`, `iat`, `exp` and `type`.
+- Uploads are size-, type-, extension-, row- and column-bounded.
+- Malformed CSV rows are rejected instead of silently truncated.
+- Original uploads are immutable and refined versions are separate objects.
+- Object storage stays private and exports use short-lived signed URLs.
+- CI runs CodeQL and dependency audits.
 
-```bash
-# 1. Clone and enter the repo
-cd rivu
+Signed URLs are bearer credentials; expiration, IAM scope and logging therefore need tight controls. citeturn0search0turn0search3
 
-# 2. Copy environment variables
-cp .env.example .env
-# Fill in your values in .env
+## Scale target
 
-# 3. Start local services
-docker-compose up -d
+The stated target is **150,000 requests/second**. This repository has **not** demonstrated that throughput yet.
 
-# 4. Set up backend
-cd backend
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-cd ..
+To support that target, production needs:
 
-# 5. Set up database
-psql $DATABASE_URL_SYNC < db/schema.sql
+1. CDN/edge caching for public/static traffic.
+2. Stateless horizontally scaled API instances.
+3. Direct-to-object-storage uploads with scoped signed upload URLs.
+4. A durable queue for profiling/refinement jobs.
+5. Separate worker pools for CPU-heavy data processing and AI calls.
+6. PgBouncer/database pooling and bounded per-instance connections.
+7. Redis or equivalent for hot metadata, rate limits and coordination.
+8. Per-tenant quotas/concurrency limits.
+9. Distributed tracing, metrics, logs and alerting.
+10. Load tests proving p50/p95/p99 latency, error rate, saturation and recovery.
 
-# 6. Start backend
-cd backend
-uvicorn app.main:app --reload --port 8000
+A single web service using in-process background tasks is not evidence of 150k RPS capacity. That must be proven in a production-like load test.
 
-# 7. Set up frontend (new terminal)
-cd frontend
-npm install
-npm run dev
-```
+## Data quality contract
 
-App will be running at:
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
+Rivu must preserve the source **file type** and must never silently discard rows or columns.
 
----
+Every refinement must verify:
 
-## Core Principles
+- row-count delta and explicit reason for removed rows;
+- schema/column delta and explicit reason for removed/renamed columns;
+- null/duplicate/type/format changes;
+- checksum/version lineage;
+- deterministic repeatability;
+- malformed-input rejection;
+- output re-parseability;
+- format-specific round-trip tests.
 
-1. **LLM never directly modifies data** — AI only plans; deterministic code executes
-2. **Original data is always preserved** — version 1 = raw, version 2+ = processed
-3. **Every transformation is explainable** — before/after/reason/confidence
-4. **Tenant isolation** — every resource is workspace-scoped
-5. **Security first** — no arbitrary code execution, read-only SQL validation
+Legacy `.xls` and `.xlsx` are separate formats. Dataframe-based Excel refinement does not currently guarantee preservation of workbook styling, formulas, macros or multiple worksheets; that must be made explicit in the product contract until workbook-preserving transforms exist.
 
----
+## CI gates
+
+Production promotion should require:
+
+- frontend build;
+- Python compilation;
+- unit/integration tests;
+- dependency audit with no fixable vulnerabilities;
+- CodeQL;
+- parser boundary/fuzz tests;
+- transformation invariant tests;
+- authorization tests;
+- browser E2E tests;
+- load-test evidence;
+- migration smoke test;
+- recovery/rollback test.
+
+## Credential exposure
+
+A credential exposed outside the deployment secret store must be considered compromised. Hiding an environment variable in Git does **not** invalidate an already exposed credential. Before a real production launch, exposed credentials must be revoked/reissued by their provider.
 
 ## License
 

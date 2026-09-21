@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     S3_REGION: str = "us-east-1"
     S3_USE_SSL: bool = False
     S3_FORCE_PATH_STYLE: bool = True
-    AUTO_CREATE_SCHEMA: bool = True
+    AUTO_CREATE_SCHEMA: bool = False
 
     MAX_UPLOAD_SIZE_MB: int = 500
     MAX_PROFILE_SAMPLE_ROWS: int = 100_000
