@@ -75,8 +75,8 @@ def parse_to_polars(data: bytes, file_format: str, filename: str) -> Tuple[pl.Da
                 separator=delimiter,
                 infer_schema_length=10000,
                 null_values=["", "NA", "N/A", "na", "n/a", "NULL", "null", "None", "none", "NaN", "nan"],
-                ignore_errors=True,
-                truncate_ragged_lines=True,
+                ignore_errors=False,
+                truncate_ragged_lines=False,
             )
         except Exception as e:
             raise ValidationError(f"Failed to parse CSV: {e}")
