@@ -29,5 +29,6 @@ jobs:
         env:
           APP_ENV: test
           DEBUG: "false"
+          PYTHONPATH: .
           JWT_SECRET: test-only-secret-for-ci-012345678901234567890123456789
         run: pytest -q
