@@ -148,3 +148,12 @@ def validate_upload(filename: str, size: int, content_type: str) -> str:
         raise ValidationError("File is empty")
     file_format = detect_file_format(filename, content_type)
     return file_format
+
+
+
+def validate_file_signature(data: bytes, file_format: str) -> None:
+    """Validate cheap magic-byte signatures for binary formats."""
+    if file_format == "parquet" and not data.startswith(b"PAR1"):
+        raise ValidationError("Invalid Parquet file signature")
+    if file_format == "xlsx" and not (data[:4] == b"PK\\x03\\x04" or data[:8] == b"\\xd0\\xcf\\x11\\xe0\\xa1\\xb1\\x1a\\xe1"):
+        raise ValidationError("Invalid Excel file signature")
