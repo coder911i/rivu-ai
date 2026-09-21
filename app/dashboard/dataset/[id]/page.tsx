@@ -17,7 +17,7 @@ type RefineryPlan={id?:string;summary?:string;dataset_summary?:string;operations
 type PreviewItem={column?:string;op?:string;before?:unknown[];after?:unknown[]};
 type PreviewResponse={previews?:PreviewItem[]};
 type ArtifactMap=Record<string,{filename:string;download_url:string;size_bytes?:number}>;
-type IntelligenceReport={ai?:{headline:string;summary:string;strengths:string[];risks:string[];actions:string[];data_readiness:number};quality:{overall:number;completeness:number;validity:number;consistency:number;uniqueness:number;integrity:number};issues:any[];sample_rows:Record<string,unknown>[];artifacts?:ArtifactMap;refinement?:{applied:number;failed:number;quality_delta:number}|null};
+type IntelligenceReport={ai?:{headline:string;summary:string;strengths:string[];risks:string[];actions:string[];data_readiness:number};quality:{overall:number;completeness:number;validity:number;consistency:number;uniqueness:number;integrity:number};issues:any[];sample_rows:Record<string,unknown>[];artifacts?:ArtifactMap;refinement?:{applied:number;failed:number;quality_delta:number;quality_before?:number;quality_after?:number}|null};
 
 function apiErrorMessage(data: any, fallback: string): string {
   const detail = data?.detail;
