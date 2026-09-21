@@ -7,36 +7,41 @@ on:
 
 permissions:
   contents: read
-  security-events: write
 
 jobs:
   dependency-audit:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
       - name: Audit Python dependencies
         working-directory: backend
         run: |
           python -m pip install --upgrade pip
           pip install pip-audit
           pip-audit -r requirements.txt --strict
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
-
-      - name: Install frontend dependencies
-        run: npm install --no-audit --no-fund
-
+      - run: npm install --no-audit --no-fund
       - name: Audit frontend dependencies
         run: npm audit --audit-level=high
+
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
 
   codeql:
     name: CodeQL
@@ -53,5 +58,5 @@ jobs:
       - uses: actions/checkout@v4
       - uses: github/codeql-action/init@v3
         with:
-          languages: ${{ matrix.language }}
+          languages: [javascript-typescript, python]
       - uses: github/codeql-action/analyze@v3
