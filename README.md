@@ -1,113 +1,65 @@
-# Rivu by WaterTing
+# Rivu AI — Data Refinery & Intelligence
 
-**Turn messy data into production-ready intelligence.**
+Rivu turns messy business data into cleaned, validated and explainable datasets plus intelligence reports.
 
-Rivu is an AI-native Data Refinery that takes raw, inconsistent, and unstructured datasets and transforms them into clean, validated, structured, and analytically ready data intelligence.
+## Product flow
 
----
+Upload → Validate → Profile → Quality → AI Plan → Review/Approve → Deterministic Transform → Re-profile → Validate → Download → Report
 
-## The Pipeline
+## Architecture
 
-```
-RAW DATA
-  → UNDERSTANDING
-  → QUALITY ANALYSIS
-  → CLEANING
-  → NORMALIZATION
-  → VALIDATION
-  → STRUCTURING
-  → ANALYTICS
-  → DATA INTELLIGENCE
-```
+- Web: Next.js + TypeScript
+- API: FastAPI + SQLAlchemy async
+- Processing: Polars + pandas/openpyxl
+- Database: PostgreSQL
+- Storage: S3-compatible object storage
+- AI: provider abstraction with Groq support
+- Auth: JWT + PBKDF2-SHA256 password hashing
+- CI: GitHub Actions, CodeQL, dependency auditing
 
----
+## Repository
 
-## Tech Stack
+app/ — Next.js product UI
+lib/ — frontend API and brand utilities
+backend/app/ — FastAPI application
+backend/tests/ — backend tests
+backend/alembic/ — production migrations
+db/ — database reference schema
+.github/workflows/ — CI and security
 
-| Layer | Technology |
-|---|---|
-| Frontend | Next.js 14, TypeScript, Tailwind CSS |
-| Backend | Python, FastAPI, Polars |
-| Database | Neon PostgreSQL |
-| AI | Groq (Llama 3.3 70B) with provider abstraction |
-| Storage | S3-compatible (MinIO for local dev) |
-| Auth | JWT + bcrypt |
+## Production configuration
 
----
+Production secrets must be supplied through the deployment platform secret/environment store. Never commit .env files, customer datasets or credentials.
 
-## Repository Structure
+Production requires:
+- APP_ENV=production
+- DEBUG=false
+- strong JWT_SECRET
+- PostgreSQL
+- TLS-enabled object storage
+- production ALLOWED_ORIGINS
+- AI provider configuration
+- AUTO_CREATE_SCHEMA=false
+- Alembic migrations
 
-```
-rivu/
-  frontend/        Next.js application
-  backend/         FastAPI backend
-  db/              SQL schema + migrations
-  docs/            Architecture & API docs
-  scripts/         Dev & deployment scripts
-  .env.example     Environment variable template
-  docker-compose.yml  Local dev services
-```
+## Data integrity
 
----
+Raw version 1 is immutable. AI only produces a structured transformation plan. The deterministic cleaning engine executes approved operations. Every refinement creates a new version.
 
-## Quick Start
+Malformed CSV input is rejected rather than silently dropping fields.
 
-### Prerequisites
+## Scale
 
-- Python 3.11+
-- Node.js 18+
-- Docker (for local PostgreSQL + MinIO)
+150,000 requests/second is a deployment-level target, not something source code alone can prove. Before launch, run staged load tests and measure p50/p95/p99 latency, errors, CPU/memory, database connections, queue depth and storage throughput.
 
-### Setup
+At very high traffic, heavy profiling/refinement must run on durable queue-backed workers rather than process-local request background tasks.
 
-```bash
-# 1. Clone and enter the repo
-cd rivu
+## Security
 
-# 2. Copy environment variables
-cp .env.example .env
-# Fill in your values in .env
+Keep secrets out of Git, enforce least-privilege CI permissions, run dependency/security scanning and protect production deployments. GitHub recommends dependency review and short-lived cloud credentials such as OIDC where supported.
 
-# 3. Start local services
-docker-compose up -d
+## Release gate
 
-# 4. Set up backend
-cd backend
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-cd ..
-
-# 5. Set up database
-psql $DATABASE_URL_SYNC < db/schema.sql
-
-# 6. Start backend
-cd backend
-uvicorn app.main:app --reload --port 8000
-
-# 7. Set up frontend (new terminal)
-cd frontend
-npm install
-npm run dev
-```
-
-App will be running at:
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
-
----
-
-## Core Principles
-
-1. **LLM never directly modifies data** — AI only plans; deterministic code executes
-2. **Original data is always preserved** — version 1 = raw, version 2+ = processed
-3. **Every transformation is explainable** — before/after/reason/confidence
-4. **Tenant isolation** — every resource is workspace-scoped
-5. **Security first** — no arbitrary code execution, read-only SQL validation
-
----
-
-## License
+A production release requires passing frontend build, backend tests, security scans, auth/tenant isolation tests, dataset-format tests, transformation tests, complete E2E tests and deployed load tests.
 
 Proprietary — WaterTing © 2026
