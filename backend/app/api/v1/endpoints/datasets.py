@@ -25,7 +25,7 @@ from app.models.organization import Membership
 from app.models.project import Project
 from app.models.dataset import DataSource, DatasetVersion
 from app.models.quality import Job
-from app.ingestion.parser import validate_upload, parse_to_polars
+from app.ingestion.parser import validate_upload, parse_to_polars, validate_file_signature
 from app.workers.processor import process_dataset_async
 
 router = APIRouter()
@@ -91,6 +91,15 @@ async def upload_dataset(
         file_format = validate_upload(filename, size, content_type)
     except ValidationError as e:
         raise HTTPException(status_code=400, detail={"message": e.message, "type": "validation_error"})
+    # Cheap binary signature validation before object-storage persistence.
+    if file_format in {"xlsx", "parquet"}:
+        await file.seek(0)
+        signature = await file.read(16)
+        await file.seek(0)
+        try:
+            validate_file_signature(signature, file_format)
+        except ValidationError as e:
+            raise HTTPException(status_code=400, detail={"message": e.message, "type": "validation_error"})
 
     # Keep client-controlled filenames safe and portable in object-storage keys.
     safe_filename = re.sub(r"[^A-Za-z0-9._-]", "_", filename).strip("._")[:200] or "upload"
