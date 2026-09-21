@@ -14,8 +14,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt ./requirements.txt
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
+RUN useradd --create-home --uid 10001 rivu
+
 COPY app ./app
+COPY alembic.ini ./alembic.ini
+COPY alembic ./alembic
+
+RUN chown -R rivu:rivu /app
+USER rivu
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]
