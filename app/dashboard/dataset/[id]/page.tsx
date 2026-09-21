@@ -242,7 +242,7 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
      </div>
 
      {error&&<div className={styles.error}>{error}</div>}
-     {artifacts&&<div className={styles.actions}>
+     {artifacts&&<section className={styles.downloadPanel}><div><small>REFINED DATA / READY TO USE</small><h3>Your cleaned dataset is ready.</h3><p>Download the refined output in the original format or any supported analysis format.</p></div><div className={styles.downloadGrid}>
       {["csv","xlsx","json","parquet"].map((key)=>
        artifacts[key]&&<a key={key} href={artifacts[key].download_url} download={artifacts[key].filename} className={styles.ai}>
         <Download size={14}/> {key.toUpperCase()}
@@ -251,7 +251,7 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
       {artifacts["schema.json"]&&<a href={artifacts["schema.json"].download_url} download={artifacts["schema.json"].filename} className={styles.ai}>
        <Download size={14}/> SCHEMA
       </a>}
-     </div>}
+     </div></section>}
 
      <div className={styles.scoreRow}>
       <div className={styles.score}><small>DATA HEALTH</small><b>{profile.version.quality_score??"—"}</b><span>/ 100</span></div>
@@ -271,6 +271,30 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
       <div className={styles.panelHead}><div><small>CLEANED OUTPUT</small><h2>What the refined data looks like</h2></div><Table2 size={18}/></div>
       <div className={styles.previewTable}><div className={styles.previewRow}>{Object.keys(reportData.sample_rows[0]).map(k=><b key={k}>{k}</b>)}</div>{reportData.sample_rows.slice(0,12).map((row,i)=><div className={styles.previewRow} key={i}>{Object.keys(reportData.sample_rows[0]).map(k=><span key={k}>{String(row[k]??"")}</span>)}</div>)}</div>
      </section>:null}
+     <section className={styles.analytics}>
+      <div className={styles.panelHead}><div><small>RIVU ANALYTICS / POWER VIEW</small><h2>Data health at a glance</h2></div><Sparkles size={18}/></div>
+      <div className={styles.analyticsGrid}>
+       <div className={styles.chartCard}>
+        <div className={styles.chartTitle}><span>QUALITY DIMENSIONS</span><b>{reportData?.quality?.overall?.toFixed(1)||Number(profile.version.quality_score||0).toFixed(1)}/100</b></div>
+        <div className={styles.bars}>
+         {reportData?.quality ? Object.entries(reportData.quality).filter(([k])=>k!=="overall").map(([k,v])=><div className={styles.chartBar} key={k}><span>{k}</span><i><em style={{width:Math.max(0,Math.min(100,Number(v)))+"%"}}/></i><b>{Number(v).toFixed(0)}</b></div>) : null}
+        </div>
+       </div>
+       <div className={styles.chartCard}>
+        <div className={styles.chartTitle}><span>ISSUE MIX</span><b>{reportData?.issues?.length||0} detected</b></div>
+        <div className={styles.issueBars}>
+         {["critical","high","medium","low"].map(level=>{const n=reportData?.issues?.filter((x:any)=>String(x.severity||"").toLowerCase()===level).length||0;const total=Math.max(1,reportData?.issues?.length||0);return <div key={level}><span>{level}</span><i><em style={{width:(n/total*100)+"%"}}/></i><b>{n}</b></div>})}
+        </div>
+        <div className={styles.analyticsNote}>Measured from the current refined version. No synthetic metrics.</div>
+       </div>
+       <div className={styles.chartCard}>
+        <div className={styles.chartTitle}><span>REFINEMENT IMPACT</span><b>{reportData?.refinement?.quality_delta!==undefined?((reportData.refinement.quality_delta>0?"+":"")+Number(reportData.refinement.quality_delta).toFixed(1)):"—"}</b></div>
+        <div className={styles.impact}><div><small>QUALITY BEFORE</small><strong>{reportData?.refinement?.quality_before!==undefined?Number(reportData.refinement.quality_before).toFixed(1):"—"}</strong></div><div className={styles.impactArrow}>→</div><div><small>QUALITY AFTER</small><strong>{reportData?.quality?.overall?.toFixed(1)||"—"}</strong></div></div>
+        <div className={styles.analyticsNote}>{reportData?.refinement?reportData.refinement.applied+" operations applied · "+reportData.refinement.failed+" failed":"Refinement history will appear after a transformation."}</div>
+       </div>
+      </div>
+     </section>
+
      <section className={styles.grid}>
       <div className={styles.panel}>
        <div className={styles.panelHead}>
