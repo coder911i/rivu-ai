@@ -30,3 +30,12 @@ def test_upload_size_boundary(size, ok):
 def test_unsupported_extension_is_rejected():
     with pytest.raises(ValidationError):
         validate_upload("data.exe", 10, "application/octet-stream")
+
+
+def test_binary_signature_validation():
+    from app.ingestion.parser import validate_file_signature
+
+    validate_file_signature(b"PAR1" + b"x", "parquet")
+    validate_file_signature(b"PK\\x03\\x04" + b"x", "xlsx")
+    with pytest.raises(ValidationError):
+        validate_file_signature(b"not-a-parquet", "parquet")
