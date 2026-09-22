@@ -67,7 +67,7 @@ async def report_dashboard(dataset_id: UUID, current_user: User=Depends(get_curr
     payload["artifacts"]={}
     if latest_run and version.version_number > 1:
         root=f"orgs/{org}/projects/{ds.project_id}/datasets/{ds.id}/v{version.version_number}"
-        for ext in ("csv","xlsx","json","parquet","schema.json"):
+        for ext in ("csv","xlsx","xls","json","parquet","schema.json"):
             key=f"{root}/{ds.name}_v{version.version_number}.{ext}"
             try:
                 payload["artifacts"][ext]={"filename":key.rsplit("/",1)[-1],"download_url":await get_storage().get_download_url(key,expires_in=900)}
