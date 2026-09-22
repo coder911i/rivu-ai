@@ -32,8 +32,10 @@ def detect_file_format(filename: str, content_type: str) -> str:
     suffix = Path(filename).suffix.lower()
     if suffix in (".csv",):
         return "csv"
-    elif suffix in (".xlsx", ".xls"):
+    elif suffix == ".xlsx":
         return "xlsx"
+    elif suffix == ".xls":
+        return "xls"
     elif suffix in (".json",):
         return "json"
     elif suffix in (".parquet",):
@@ -84,7 +86,7 @@ def parse_to_polars(data: bytes, file_format: str, filename: str) -> Tuple[pl.Da
     elif file_format in ("xlsx", "xls"):
         try:
             import pandas as pd
-            frame = pd.read_excel(io.BytesIO(data), engine="openpyxl" if file_format == "xlsx" else None)
+            frame = pd.read_excel(io.BytesIO(data), engine="openpyxl" if file_format == "xlsx" else "xlrd")
             df = pl.from_pandas(frame)
         except Exception as e:
             raise ValidationError(f"Failed to parse Excel file: {e}")
@@ -155,5 +157,7 @@ def validate_file_signature(data: bytes, file_format: str) -> None:
     """Validate cheap magic-byte signatures for binary formats."""
     if file_format == "parquet" and not data.startswith(b"PAR1"):
         raise ValidationError("Invalid Parquet file signature")
-    if file_format == "xlsx" and not (data[:4] == b"PK\\x03\\x04" or data[:8] == b"\\xd0\\xcf\\x11\\xe0\\xa1\\xb1\\x1a\\xe1"):
-        raise ValidationError("Invalid Excel file signature")
+    if file_format == "xlsx" and data[:4] != b"PK\\x03\\x04":
+        raise ValidationError("Invalid XLSX file signature")
+    if file_format == "xls" and data[:8] != b"\\xd0\\xcf\\x11\\xe0\\xa1\\xb1\\x1a\\xe1":
+        raise ValidationError("Invalid XLS file signature")
