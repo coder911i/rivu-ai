@@ -178,6 +178,9 @@ async def execute_plan(
     def make_xlsx():
         import pandas as pd
         buf = io.BytesIO(); pd.DataFrame(output_df.to_dicts()).to_excel(buf, index=False, engine="openpyxl"); return buf.getvalue()
+    def make_xls():
+        import pandas as pd
+        buf = io.BytesIO(); pd.DataFrame(output_df.to_dicts()).to_excel(buf, index=False, engine="xlwt"); return buf.getvalue()
 
     schema_payload = {
         "version": next_version,
@@ -190,6 +193,7 @@ async def execute_plan(
         "json": (make_json, "application/json"),
         "parquet": (make_parquet, "application/octet-stream"),
         "xlsx": (make_xlsx, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+        "xls": (make_xls, "application/vnd.ms-excel"),
         "schema.json": (lambda: json.dumps(schema_payload, indent=2).encode("utf-8"), "application/json"),
     }
     artifacts = {}
@@ -200,12 +204,12 @@ async def execute_plan(
         await get_storage().upload_file(key, artifact_data, content_type, metadata)
         artifacts[ext] = {"filename": filename, "storage_key": key, "download_url": await get_storage().get_download_url(key, expires_in=900), "size_bytes": len(artifact_data)}
 
-    output_format = source_version.file_format if source_version.file_format in {"csv", "json", "parquet"} else "xlsx"
+    output_format = source_version.file_format if source_version.file_format in {"csv", "json", "parquet", "xlsx", "xls"} else "xlsx"
     canonical = artifacts[output_format]
     storage_key = canonical["storage_key"]
     data = await get_storage().download_file(storage_key)
     filename = canonical["filename"]
-    content_type = {"csv": "text/csv", "json": "application/json", "parquet": "application/octet-stream", "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}[output_format]
+    content_type = {"csv": "text/csv", "json": "application/json", "parquet": "application/octet-stream", "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xls": "application/vnd.ms-excel"}[output_format]
 
     new_version = DatasetVersion(
         data_source_id=ds.id, organization_id=org, version_number=next_version,
