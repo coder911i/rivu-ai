@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect,useRef,useState, type ReactNode } from "react";
-import { ArrowLeft, BrainCircuit, CheckCircle2, Download, FileJson, FileSpreadsheet, Loader2, RefreshCw, Search, ShieldCheck, Sparkles, Table2, WandSparkles } from "lucide-react";
+import { ArrowLeft, BarChart3, Bell, BrainCircuit, CheckCircle2, ChevronDown, Database, Download, FileDown, FileJson, FileSpreadsheet, Grid2X2, Loader2, RefreshCw, Search, ShieldCheck, SlidersHorizontal, Sparkles, Table2, WandSparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import styles from "./dataset.module.css";
 import { authFetch, requestBlob } from "../../../../lib/api";
@@ -18,7 +18,7 @@ type RefineryPlan={id?:string;summary?:string;dataset_summary?:string;operations
 type PreviewItem={column?:string;op?:string;before?:unknown[];after?:unknown[]};
 type PreviewResponse={previews?:PreviewItem[]};
 type ArtifactMap=Record<string,{filename:string;download_url:string;size_bytes?:number}>;
-type IntelligenceReport={ai?:{headline:string;summary:string;strengths:string[];risks:string[];actions:string[];data_readiness:number};quality:{overall:number;completeness:number;validity:number;consistency:number;uniqueness:number;integrity:number};issues:any[];sample_rows:Record<string,unknown>[];artifacts?:ArtifactMap;refinement?:{applied:number;failed:number;quality_delta:number;quality_before?:number;quality_after?:number}|null};
+type IntelligenceReport={ai?:{headline:string;summary:string;executive_summary?:string;data_story?:string;key_findings?:string[];risk_analysis?:string[];recommended_actions?:string[];strengths:string[];risks:string[];actions:string[];data_readiness:number;confidence_note?:string};quality:{overall:number;completeness:number;validity:number;consistency:number;uniqueness:number;integrity:number};issues:any[];sample_rows:Record<string,unknown>[];artifacts?:ArtifactMap;refinement?:{applied:number;failed:number;quality_delta:number;quality_before?:number;quality_after?:number}|null};
 type TableResponse={columns:string[];rows:Record<string,unknown>[];total:number;offset:number;limit:number};
 
 function apiErrorMessage(data: any, fallback: string): string {
@@ -157,9 +157,16 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
  }
  return (
   <main className={styles.page}><CursorField/>
-   <header>
-    <div className={styles.headerLeft}><BrandLogo href="/dashboard" className={styles.datasetLogo}/><a href="/dashboard" className={styles.workspaceButton}><ArrowLeft size={16}/><span>Workspace</span></a></div>
-    <div className={styles.secure}><ShieldCheck size={15}/> Tenant-isolated data</div>
+   <header className={styles.topNav}>
+    <BrandLogo href="/dashboard" className={styles.datasetLogo}/>
+    <nav className={styles.topNavLinks}>
+      <a className={styles.topNavActive} href="#overview"><Grid2X2 size={16}/> Workspace</a>
+      <a href="#data-explorer"><Database size={16}/> Datasets</a>
+      <a href="#ai-insights"><Sparkles size={16}/> AI Refinery</a>
+      <a href="#quality"><BarChart3 size={16}/> Analytics</a>
+      <a href="#export"><FileDown size={16}/> Exports</a>
+    </nav>
+    <div className={styles.topNavRight}><Bell size={17}/><div className={styles.userPill}>R</div><span>Rivu</span><ChevronDown size={14}/></div>
    </header>
 
    {!profile ? (
@@ -172,19 +179,30 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
     </div>
    ) : (
     <>
-     <div className={styles.hero}>
-      <div>
-       <div className={styles.kicker}>DATASET / {profile.dataset.status?.toUpperCase()}</div>
-       <h1>{profile.dataset.name}</h1>
-       <p>{profile.profile.row_count.toLocaleString()} rows · {profile.profile.column_count} columns · v{profile.version.number}</p>
-      </div>
-      <div className={styles.actions}>
-       <button onClick={report}><Download size={15}/> Report</button>
-       <button className={styles.ai} onClick={ai} disabled={busy}>
-        {busy?<Loader2 className={styles.spin}/>:<WandSparkles size={15}/>} {busy?"Analyzing...":"AI Refinery Plan"}
-       </button>
+     <div className={styles.heroTop}>
+      <a className={styles.backButton} href="/dashboard"><ArrowLeft size={17}/> Back to Workspace</a>
+      <div className={styles.heroActions}>
+       <button onClick={()=>router.push("/dashboard")}><Download size={15}/> Upload New</button>
+       <button onClick={()=>document.getElementById("data-explorer")?.scrollIntoView({behavior:"smooth"})}><SlidersHorizontal size={15}/> Filter</button>
+       <button onClick={()=>document.getElementById("export")?.scrollIntoView({behavior:"smooth"})}><Download size={15}/> Export <ChevronDown size={13}/></button>
+       <button className={styles.ai} onClick={ai} disabled={busy}>{busy?<Loader2 className={styles.spin}/>:<WandSparkles size={16}/>} {busy?"Analyzing...":"AI Refinery"}</button>
       </div>
      </div>
+     <div className={styles.hero}>
+      <div>
+       <div className={styles.kicker}>DATASET / {profile.dataset.status?.toUpperCase() || "PROFILED"}</div>
+       <h1>{profile.dataset.name}</h1>
+       <p>{profile.profile.row_count.toLocaleString()} rows · {profile.profile.column_count} columns · v{profile.version.number} <span> | </span> {profile.dataset.name} <span> | </span> CSV</p>
+      </div>
+     </div>
+     <nav className={styles.datasetTabs} aria-label="Dataset sections">
+       <a className={styles.datasetTabActive} href="#overview"><Grid2X2 size={17}/> Overview</a>
+       <a href="#data-explorer"><Table2 size={17}/> Data Explorer</a>
+       <a href="#quality"><ShieldCheck size={17}/> Data Quality</a>
+       <a href="#ai-insights"><Sparkles size={17}/> AI Insights</a>
+       <a href="#transformations"><ArrowLeft size={17}/> Transformations</a>
+       <a href="#export"><Download size={17}/> Export</a>
+     </nav>
 
      {error&&<div className={styles.error}>{error}</div>}
      {artifacts&&<section className={styles.downloadPanel}><div><small>REFINED DATA / READY TO USE</small><h3>Your cleaned dataset is ready.</h3><p>Download the refined output in the original format or any supported analysis format.</p></div><div className={styles.downloadGrid}>
@@ -198,7 +216,7 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
       </a>}
      </div></section>}
 
-     <div className={styles.scoreRow}>
+     <div id="overview" className={styles.scoreRow}>
       <div className={styles.score}><small>DATA HEALTH</small><b>{profile.version.quality_score??"—"}</b><span>/ 100</span></div>
       <Stat label="Rows" value={profile.profile.row_count.toLocaleString()}/>
       <Stat label="Columns" value={profile.profile.column_count}/>
@@ -206,17 +224,22 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
       <Stat label="Null rate" value={profile.profile.total_null_pct+"%"}/>
      </div>
 
-     <section className={styles.reportPanel}>
-      <div className={styles.panelHead}><div><small>EXECUTIVE DATA REPORT</small><h2>{reportData?.ai?.headline||"Rivu intelligence report"}</h2></div><Sparkles size={18}/></div>
-      <p className={styles.reportSummary}>{reportData?.ai?.summary||"Rivu is generating the measured report from the refined dataset."}</p>
-      {reportData?.ai&&<div className={styles.aiReportGrid}><ReportList title="Strengths" items={reportData.ai.strengths}/><ReportList title="Risks" items={reportData.ai.risks}/><ReportList title="Recommended actions" items={reportData.ai.actions}/></div>}
-      <div className={styles.reportScoreRow}><div><small>DATA READINESS</small><b>{Math.round(reportData?.ai?.data_readiness||Number(profile.version.quality_score||0))}</b>/100</div><div><small>QUALITY</small><b>{reportData?.quality?.overall?.toFixed(1)||profile.version.quality_score||"—"}</b></div><div><small>ISSUES</small><b>{reportData?.issues?.length||0}</b></div></div>
+     <section id="ai-insights" className={styles.reportPanel}>
+      <div className={styles.aiReportHeader}><div><small>RIVU AI / EXECUTIVE INTELLIGENCE</small><h2>{reportData?.ai?.headline||"Rivu intelligence report"}</h2></div><div className={styles.aiBadge}><Sparkles size={15}/> AI ANALYST</div></div>
+      <p className={styles.reportSummary}>{reportData?.ai?.executive_summary||reportData?.ai?.summary||"Rivu is generating the measured report from the refined dataset."}</p>
+      <div className={styles.aiStory}>{reportData?.ai?.data_story||"The report combines measured profile, quality dimensions, detected issues and refinement history."}</div>
+      {reportData?.ai&&<div className={styles.aiReportGrid}>
+       <ReportList title="Key findings" items={reportData.ai.key_findings?.length?reportData.ai.key_findings:reportData.ai.strengths}/>
+       <ReportList title="Risk analysis" items={reportData.ai.risk_analysis?.length?reportData.ai.risk_analysis:reportData.ai.risks}/>
+       <ReportList title="Recommended actions" items={reportData.ai.recommended_actions?.length?reportData.ai.recommended_actions:reportData.ai.actions}/>
+      </div>}
+      <div className={styles.reportScoreRow}><div><small>DATA READINESS</small><b>{Math.round(reportData?.ai?.data_readiness||Number(profile.version.quality_score||0))}</b>/100</div><div><small>QUALITY</small><b>{reportData?.quality?.overall?.toFixed(1)||profile.version.quality_score||"—"}</b></div><div><small>ISSUES</small><b>{reportData?.issues?.length||0}</b></div><div><small>AI CONFIDENCE</small><b>{reportData?.ai?.confidence_note?"Fact-grounded":"Measured"}</b></div></div>
      </section>
      {reportData?.sample_rows?.length?<section className={styles.panel}>
       <div className={styles.panelHead}><div><small>CLEANED OUTPUT</small><h2>What the refined data looks like</h2></div><Table2 size={18}/></div>
       <div className={styles.previewTable}><div className={styles.previewRow}>{Object.keys(reportData.sample_rows[0]).map(k=><b key={k}>{k}</b>)}</div>{reportData.sample_rows.slice(0,12).map((row,i)=><div className={styles.previewRow} key={i}>{Object.keys(reportData.sample_rows[0]).map(k=><span key={k}>{String(row[k]??"")}</span>)}</div>)}</div>
      </section>:null}
-     <section className={styles.analytics}>
+     <section id="quality" className={styles.analytics}>
       <div className={styles.panelHead}><div><small>RIVU ANALYTICS / POWER VIEW</small><h2>Data health at a glance</h2></div><Sparkles size={18}/></div>
       <div className={styles.analyticsGrid}>
        <div className={styles.chartCard}>
@@ -300,7 +323,7 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
      </section>
 
      {plan&&(
-      <section className={styles.plan}>
+      <section id="transformations" className={styles.plan}>
        <div className={styles.panelHead}>
         <div><small>RIVU AI / CLEANING STUDIO</small><h2>Recommended refinement plan</h2></div>
         <Sparkles size={19}/>
