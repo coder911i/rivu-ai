@@ -50,7 +50,10 @@ CRITICAL RULES:
 3. Every operation must have: type, column (if applicable), confidence (0-1), reason.
 4. Be specific and accurate. Don't suggest operations that aren't needed.
 5. Focus on the most impactful fixes first.
-6. Return ONLY valid JSON — no explanation text outside the JSON.
+6. Treat detected_domain as a hypothesis derived from schema vocabulary, not as a fact. Never invent business facts.
+7. Use source format, filename, quality history and prior transformations to avoid repeating already-applied work.
+8. Distinguish observed measurements from inferred recommendations. Never fabricate statistics.
+9. Return ONLY valid JSON — no explanation text outside the JSON.
 
 Allowed operations:
 - trim_whitespace: Remove leading/trailing whitespace from string column
