@@ -179,7 +179,6 @@ async def execute_plan(
         # Preserve the source workbook's other sheets and workbook container.
         # Rivu transforms the data sheet while leaving unrelated sheets intact.
         from openpyxl import load_workbook
-        from openpyxl.utils import get_column_letter
         workbook = load_workbook(io.BytesIO(source_raw))
         sheet = workbook[workbook.sheetnames[0]]
         if sheet.max_row > 0:
