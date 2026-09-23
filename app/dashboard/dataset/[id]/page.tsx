@@ -158,7 +158,7 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
  return (
   <main className={styles.page}><CursorField/>
    <header>
-    <div className={styles.headerLeft}><a href="/dashboard"><ArrowLeft size={16}/> Workspace</a><BrandLogo href="/dashboard" className={styles.datasetLogo}/></div>
+    <div className={styles.headerLeft}><BrandLogo href="/dashboard" className={styles.datasetLogo}/><a href="/dashboard" className={styles.workspaceButton}><ArrowLeft size={16}/><span>Workspace</span></a></div>
     <div className={styles.secure}><ShieldCheck size={15}/> Tenant-isolated data</div>
    </header>
 
