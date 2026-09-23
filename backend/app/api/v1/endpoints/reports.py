@@ -233,3 +233,44 @@ Refinement: {refinement_summary}"""
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{ds.name}-rivu-report.pdf"'},
     )
+
+    
+@router.get("/{dataset_id}/executive-pdf")
+async def executive_pdf(dataset_id: UUID, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_session)):
+    """Generate a compact executive intelligence PDF from measured dataset facts."""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+
+    org=(await db.execute(select(Membership.organization_id).where(Membership.user_id==current_user.id).limit(1))).scalar_one_or_none()
+    ds=(await db.execute(select(DataSource).where(DataSource.id==dataset_id,DataSource.organization_id==org))).scalar_one_or_none()
+    if not ds: raise HTTPException(404,"Dataset not found")
+    version=(await db.execute(select(DatasetVersion).where(DatasetVersion.data_source_id==ds.id,DatasetVersion.version_number==ds.current_version))).scalar_one_or_none()
+    if not version: raise HTTPException(404,"Dataset version not found")
+    profile=(await db.execute(select(DataProfile).where(DataProfile.dataset_version_id==version.id))).scalar_one_or_none()
+    quality=(await db.execute(select(QualityReport).where(QualityReport.dataset_version_id==version.id))).scalar_one_or_none()
+    issues=(await db.execute(select(QualityIssue).where(QualityIssue.quality_report_id==quality.id))).scalars().all() if quality else []
+    if not profile or not quality: raise HTTPException(409,"Dataset intelligence is still processing")
+
+    top_issues=sorted(issues,key=lambda x: {"critical":0,"high":1,"medium":2,"low":3}.get(str(x.severity).lower(),4))[:8]
+    buf=io.BytesIO()
+    doc=SimpleDocTemplate(buf,pagesize=A4,rightMargin=18*mm,leftMargin=18*mm,topMargin=18*mm,bottomMargin=18*mm)
+    styles=getSampleStyleSheet()
+    title=ParagraphStyle("ExecTitle",parent=styles["Title"],fontSize=24,textColor=colors.HexColor("#172033"))
+    body=ParagraphStyle("ExecBody",parent=styles["BodyText"],fontSize=9,leading=13)
+    story=[Paragraph("RIVU AI — EXECUTIVE INTELLIGENCE",title),Spacer(1,8),
+      Paragraph(f"<b>{ds.name}</b> · version {version.version_number}",styles["Heading2"]),
+      Paragraph(f"Source: {ds.original_filename} · {profile.row_count:,} rows · {profile.column_count} columns",body),Spacer(1,12),
+      Paragraph("Data Quality Snapshot",styles["Heading2"])]
+    rows=[["Overall",f"{float(quality.overall_score):.1f}/100"],["Completeness",f"{float(quality.completeness_score or 0):.1f}"],["Validity",f"{float(quality.validity_score or 0):.1f}"],["Consistency",f"{float(quality.consistency_score or 0):.1f}"],["Uniqueness",f"{float(quality.uniqueness_score or 0):.1f}"],["Integrity",f"{float(quality.integrity_score or 0):.1f}"],["Issues",str(len(issues))]]
+    t=Table(rows,colWidths=[55*mm,55*mm]);t.setStyle(TableStyle([("GRID",(0,0),(-1,-1),.35,colors.HexColor("#cbd5e1")),("FONTSIZE",(0,0),(-1,-1),9)]));story += [t,Spacer(1,12),Paragraph("Priority Risks",styles["Heading2"])]
+    if top_issues:
+      ir=[["Severity","Issue","Column"]]+[[str(i.severity),str(i.title),str(i.affected_column or "—")] for i in top_issues]
+      it=Table(ir,colWidths=[25*mm,95*mm,45*mm],repeatRows=1);it.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),colors.HexColor("#172033")),("TEXTCOLOR",(0,0),(-1,0),colors.white),("GRID",(0,0),(-1,-1),.3,colors.HexColor("#cbd5e1")),("FONTSIZE",(0,0),(-1,-1),7.5)]));story.append(it)
+    story += [Spacer(1,12),Paragraph("Recommended Actions",styles["Heading2"])]
+    for issue in top_issues[:5]:
+      story.append(Paragraph(f"• {issue.suggested_fix or issue.title}",body))
+    doc.build(story);buf.seek(0)
+    return StreamingResponse(buf,media_type="application/pdf",headers={"Content-Disposition":f'attachment; filename="{ds.name}-executive-rivu-report.pdf"'})
