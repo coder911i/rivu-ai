@@ -45,11 +45,11 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
       authFetch("/datasets/"+datasetId+"/quality",{headers:authHeaders()})
     ]);
     if(p.status===401||q.status===401){router.push("/login");return false}
-    if(!p.ok){const d=await p.json().catch(()=>null);throw new Error(apiErrorMessage(d,"Profile unavailable"))}
     if(p.status===202||q.status===202){
-      setError("Rivu is still processing this dataset…");
+      setError("Rivu is still processing this dataset. Live processing status will update automatically.");
       return false;
     }
+    if(!p.ok){const d=await p.json().catch(()=>null);throw new Error(apiErrorMessage(d,"Profile unavailable"))}
     const pd=await p.json();
     setProfile(pd);
     if(q.ok){setQuality(await q.json());await loadReport();}
