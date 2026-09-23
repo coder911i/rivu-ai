@@ -142,7 +142,7 @@ async def execute_plan(
     if plan.status == "executed":
         raise HTTPException(409, "Transformation plan has already been executed")
 
-    df, _ = await _load_dataframe(source_version)
+    df, source_raw = await _load_dataframe(source_version)
     operations = plan.operations
     if body.operation_indexes is not None:
         operations = [operations[i] for i in body.operation_indexes if 0 <= i < len(operations)]
@@ -176,8 +176,22 @@ async def execute_plan(
     def make_parquet():
         buf = io.BytesIO(); output_df.write_parquet(buf); return buf.getvalue()
     def make_xlsx():
-        import pandas as pd
-        buf = io.BytesIO(); pd.DataFrame(output_df.to_dicts()).to_excel(buf, index=False, engine="openpyxl"); return buf.getvalue()
+        # Preserve the source workbook's other sheets and workbook container.
+        # Rivu transforms the data sheet while leaving unrelated sheets intact.
+        from openpyxl import load_workbook
+        from openpyxl.utils import get_column_letter
+        workbook = load_workbook(io.BytesIO(source_raw))
+        sheet = workbook[workbook.sheetnames[0]]
+        if sheet.max_row > 0:
+            sheet.delete_rows(1, sheet.max_row)
+        for col_index, name in enumerate(output_df.columns, start=1):
+            sheet.cell(row=1, column=col_index, value=name)
+        for row_index, row in enumerate(output_df.iter_rows(), start=2):
+            for col_index, value in enumerate(row, start=1):
+                if hasattr(value, "isoformat") and not isinstance(value, str):
+                    value = value.isoformat()
+                sheet.cell(row=row_index, column=col_index, value=value)
+        buf = io.BytesIO(); workbook.save(buf); return buf.getvalue()
     def make_xls():
         import pandas as pd
         buf = io.BytesIO(); pd.DataFrame(output_df.to_dicts()).to_excel(buf, index=False, engine="xlwt"); return buf.getvalue()
