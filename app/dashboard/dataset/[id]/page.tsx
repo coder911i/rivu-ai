@@ -140,6 +140,14 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
  }
 
  async function downloadFile(path:string,filename:string){try{const blob=await requestBlob(path,{headers:authHeaders()});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url)}catch(e){setError(e instanceof Error?e.message:"Download failed")}}
+ async function downloadCurrentDataset(format:string){
+  try{
+   const r=await authFetch("/datasets/"+datasetId+"/export/"+String(profile?.version.number||1)+"?format="+encodeURIComponent(format),{headers:authHeaders()});
+   const d=await r.json().catch(()=>({}));
+   if(!r.ok||!d.download_url) throw new Error(apiErrorMessage(d,"Cleaned dataset download is unavailable"));
+   const a=document.createElement("a");a.href=d.download_url;a.download=d.filename||("rivu-"+datasetId+"-v"+(profile?.version.number||1)+"."+format);a.target="_blank";a.rel="noopener";a.click();
+  }catch(e){setError(e instanceof Error?e.message:"Cleaned dataset download failed")}
+ }
  async function report() {
   try {
     const response = await authFetch("/reports/" + datasetId + "/pdf", { headers: authHeaders() });
@@ -283,7 +291,14 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
      </section>
      <section className={styles.downloadPanel}>
       <div><small>EXPORT CENTER</small><h3>Take the dataset with you.</h3><p>Every download below is generated from the current authenticated dataset/version.</p></div>
-      <div className={styles.downloadGrid}>{artifacts&&Object.entries(artifacts).map(([key,a])=><a key={key} href={a.download_url} download={a.filename} className={styles.ai}><Download size={14}/>{key.toUpperCase()}</a>)}<button onClick={()=>downloadFile("/reports/"+datasetId+"/json","rivu-"+datasetId+"-report.json")}><FileJson size={14}/> REPORT JSON</button><button onClick={report}><FileSpreadsheet size={14}/> QUALITY PDF</button><button onClick={()=>downloadFile("/reports/"+datasetId+"/executive-pdf","rivu-"+datasetId+"-executive.pdf")}><FileSpreadsheet size={14}/> EXECUTIVE PDF</button></div>
+      <div className={styles.downloadGrid}>
+       <button className={styles.cleanedDownload} onClick={()=>downloadCurrentDataset("csv")}><Download size={16}/> DOWNLOAD CLEANED CSV</button>
+       <button className={styles.cleanedDownload} onClick={()=>downloadCurrentDataset("xlsx")}><FileSpreadsheet size={16}/> DOWNLOAD CLEANED XLSX</button>
+       {artifacts&&Object.entries(artifacts).map(([key,a])=><a key={key} href={a.download_url} download={a.filename} className={styles.ai}><Download size={14}/>{key.toUpperCase()}</a>)}
+       <button onClick={()=>downloadFile("/reports/"+datasetId+"/json","rivu-"+datasetId+"-report.json")}><FileJson size={14}/> REPORT JSON</button>
+       <button onClick={report}><FileSpreadsheet size={14}/> QUALITY PDF</button>
+       <button onClick={()=>downloadFile("/reports/"+datasetId+"/executive-pdf","rivu-"+datasetId+"-executive.pdf")}><FileSpreadsheet size={14}/> EXECUTIVE PDF</button>
+      </div>
      </section>
 
      <section className={styles.grid}>
