@@ -123,7 +123,7 @@ async def ai_plan(dataset_id: UUID, current_user: User = Depends(get_current_use
     issues = (await db.execute(select(QualityIssue).where(QualityIssue.quality_report_id == q.id))).scalars().all()
     plan = await generate_transformation_plan(
         get_ai_provider(),
-        {"row_count": p.row_count, "column_count": p.column_count, "duplicate_row_count": p.duplicate_row_count, "duplicate_row_pct": float(p.duplicate_row_pct or 0), "total_null_pct": float(p.total_null_pct or 0)},
+        {"row_count": p.row_count, "column_count": p.column_count, "duplicate_row_count": p.duplicate_row_count, "duplicate_row_pct": float(p.duplicate_row_pct or 0), "total_null_pct": float(p.total_null_pct or 0), "filename": ds.original_filename, "file_format": ds.file_format},
         {"overall_score": float(q.overall_score), "completeness_score": float(q.completeness_score or 0), "validity_score": float(q.validity_score or 0), "consistency_score": float(q.consistency_score or 0), "uniqueness_score": float(q.uniqueness_score or 0), "issues": [{"issue_type": i.issue_type, "severity": i.severity, "affected_column": i.affected_column, "title": i.title} for i in issues]},
         [{"column_name": c.column_name, "semantic_type": c.semantic_type, "null_pct": float(c.null_pct or 0), "uniqueness_pct": float(c.uniqueness_pct or 0), "is_constant": c.is_constant, "sample_values": c.sample_values or [], "date_formats": c.date_formats or []} for c in cols],
     )
