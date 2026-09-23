@@ -305,6 +305,13 @@ async def executive_pdf(dataset_id: UUID, current_user: User = Depends(get_curre
     if not profile or not quality: raise HTTPException(409,"Dataset intelligence is still processing")
 
     top_issues=sorted(issues,key=lambda x: {"critical":0,"high":1,"medium":2,"low":3}.get(str(x.severity).lower(),4))[:8]
+    ai_report = await build_ai_report(
+        {"dataset":{"name":ds.name,"source":ds.original_filename,"version":version.version_number},
+         "profile":{"rows":profile.row_count,"columns":profile.column_count,"duplicates":profile.duplicate_row_count,"null_pct":float(profile.total_null_pct or 0)},
+         "quality":{"overall":float(quality.overall_score),"completeness":float(quality.completeness_score or 0),"validity":float(quality.validity_score or 0),"consistency":float(quality.consistency_score or 0),"uniqueness":float(quality.uniqueness_score or 0),"integrity":float(quality.integrity_score or 0)},
+         "issues":[{"severity":i.severity,"title":i.title,"column":i.affected_column,"rows":i.affected_row_count,"suggested_fix":i.suggested_fix} for i in issues[:50]]},
+        float(quality.overall_score),
+    )
     buf=io.BytesIO()
     doc=SimpleDocTemplate(buf,pagesize=A4,rightMargin=18*mm,leftMargin=18*mm,topMargin=25*mm,bottomMargin=18*mm,onFirstPage=draw_rivu_brand,onLaterPages=draw_rivu_brand)
     styles=getSampleStyleSheet()
@@ -312,6 +319,13 @@ async def executive_pdf(dataset_id: UUID, current_user: User = Depends(get_curre
     body=ParagraphStyle("ExecBody",parent=styles["BodyText"],fontSize=9,leading=13)
     story=[Paragraph("RIVU AI — EXECUTIVE INTELLIGENCE",title),Spacer(1,8),
       Paragraph(f"<b>{ds.name}</b> · version {version.version_number}",styles["Heading2"]),
+      Paragraph(ai_report.get("executive_summary") or "",body),Spacer(1,8),
+      Paragraph("Key Findings",styles["Heading2"]),
+      *[Paragraph("• "+str(x),body) for x in (ai_report.get("key_findings") or [])[:6]],
+      Paragraph("Risk Analysis",styles["Heading2"]),
+      *[Paragraph("• "+str(x),body) for x in (ai_report.get("risk_analysis") or [])[:5]],
+      Paragraph("Recommended Actions",styles["Heading2"]),
+      *[Paragraph("• "+str(x),body) for x in (ai_report.get("recommended_actions") or [])[:6]],
       Paragraph(f"Source: {ds.original_filename} · {profile.row_count:,} rows · {profile.column_count} columns",body),Spacer(1,12),
       Paragraph("Data Quality Snapshot",styles["Heading2"])]
     rows=[["Overall",f"{float(quality.overall_score):.1f}/100"],["Completeness",f"{float(quality.completeness_score or 0):.1f}"],["Validity",f"{float(quality.validity_score or 0):.1f}"],["Consistency",f"{float(quality.consistency_score or 0):.1f}"],["Uniqueness",f"{float(quality.uniqueness_score or 0):.1f}"],["Integrity",f"{float(quality.integrity_score or 0):.1f}"],["Issues",str(len(issues))]]
