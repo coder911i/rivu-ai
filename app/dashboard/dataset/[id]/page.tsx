@@ -260,7 +260,7 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
      </section>
      <section className={styles.downloadPanel}>
       <div><small>EXPORT CENTER</small><h3>Take the dataset with you.</h3><p>Every download below is generated from the current authenticated dataset/version.</p></div>
-      <div className={styles.downloadGrid}>{artifacts&&Object.entries(artifacts).map(([key,a])=><a key={key} href={a.download_url} download={a.filename} className={styles.ai}><Download size={14}/>{key.toUpperCase()}</a>)}<button onClick={()=>downloadFile("/reports/"+datasetId+"/json","rivu-"+datasetId+"-report.json")}><FileJson size={14}/> REPORT JSON</button><button onClick={report}><FileSpreadsheet size={14}/> QUALITY PDF</button></div>
+      <div className={styles.downloadGrid}>{artifacts&&Object.entries(artifacts).map(([key,a])=><a key={key} href={a.download_url} download={a.filename} className={styles.ai}><Download size={14}/>{key.toUpperCase()}</a>)}<button onClick={()=>downloadFile("/reports/"+datasetId+"/json","rivu-"+datasetId+"-report.json")}><FileJson size={14}/> REPORT JSON</button><button onClick={report}><FileSpreadsheet size={14}/> QUALITY PDF</button><button onClick={()=>downloadFile("/reports/"+datasetId+"/executive-pdf","rivu-"+datasetId+"-executive.pdf")}><FileSpreadsheet size={14}/> EXECUTIVE PDF</button></div>
      </section>
 
      <section className={styles.grid}>
