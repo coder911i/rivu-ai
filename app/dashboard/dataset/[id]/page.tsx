@@ -34,9 +34,8 @@ function apiErrorMessage(data: any, fallback: string): string {
 export default function DatasetPage({params}:{params:Promise<{id:string}>}){
  const router=useRouter();
  const [datasetId,setDatasetId]=useState("");
- const [profile,setProfile]=useState<DatasetProfile|null>(null),[quality,setQuality]=useState<QualityReport|null>(null),[plan,setPlan]=useState<RefineryPlan|null>(null),[busy,setBusy]=useState(false),[preview,setPreview]=useState<PreviewResponse|null>(null),[running,setRunning]=useState(false),[autoRefining,setAutoRefining]=useState(false),[error,setError]=useState(""),[artifacts,setArtifacts]=useState<ArtifactMap|null>(null),[reportData,setReportData]=useState<IntelligenceReport|null>(null);
- const autoRefineStarted=useRef(false);
- const load = useCallback(async () => {
+ const [profile,setProfile]=useState<DatasetProfile|null>(null),[quality,setQuality]=useState<QualityReport|null>(null),[plan,setPlan]=useState<RefineryPlan|null>(null),[busy,setBusy]=useState(false),[preview,setPreview]=useState<PreviewResponse|null>(null),[running,setRunning]=useState(false),[error,setError]=useState(""),[artifacts,setArtifacts]=useState<ArtifactMap|null>(null),[reportData,setReportData]=useState<IntelligenceReport|null>(null);
+  const load = useCallback(async () => {
   if (!datasetId) return false;
   try{
     const [p,q]=await Promise.all([
@@ -71,60 +70,7 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
   poll();
   return()=>{cancelled=true};
 },[load]);
- useEffect(()=>{
-  if(profile && quality && profile.dataset.status !== "transformed" && !autoRefineStarted.current && !autoRefining && !plan) {
-    autoRefine();
-  }
- },[profile,quality,plan,autoRefining,datasetId]);
- async function autoRefine() {
-  if (!datasetId || autoRefineStarted.current || autoRefining) return;
-  autoRefineStarted.current=true;
-  setAutoRefining(true);
-  setBusy(true);
-  setError("");
-  try {
-    // Rivu's upload flow is a refinery: once profiling is complete, generate,
-    // approve, and execute the AI plan against a new immutable dataset version.
-    const planResponse=await authFetch("/datasets/"+datasetId+"/ai-plan",{
-      method:"POST",headers:authHeaders()
-    });
-    const planData=await planResponse.json().catch(()=>({}));
-    if(!planResponse.ok) throw new Error(apiErrorMessage(planData,"AI refinement plan failed"));
-    if(!planData.id || !Array.isArray(planData.operations)){
-      throw new Error("Rivu returned an invalid refinement plan.");
-    }
-    setPlan(planData);
-    if(planData.operations.length===0){
-      setError("✓ Dataset is already clean enough — no safe transformations were required. Your report is ready.");
-      return;
-    }
-
-    const approval=await authFetch("/datasets/"+datasetId+"/transform/approve",{
-      method:"POST",headers:{...authHeaders(),"Content-Type":"application/json"},
-      body:JSON.stringify({plan_id:planData.id})
-    });
-    const approvalData=await approval.json().catch(()=>({}));
-    if(!approval.ok) throw new Error(apiErrorMessage(approvalData,"Refinement approval failed"));
-
-    const execution=await authFetch("/datasets/"+datasetId+"/transform/execute",{
-      method:"POST",headers:{...authHeaders(),"Content-Type":"application/json"},
-      body:JSON.stringify({plan_id:planData.id})
-    });
-    const executionData=await execution.json().catch(()=>({}));
-    if(!execution.ok) throw new Error(apiErrorMessage(executionData,"Data refinement failed"));
-
-    setArtifacts(executionData.artifacts||null);
-    setError("✓ Data cleaned successfully — refined v"+executionData.version.number+" created. Your report is ready.");
-    await load();
-    await loadReport();
-  } catch(error) {
-    setError(error instanceof Error?error.message:"Automatic refinement failed. You can retry with AI Refinery Plan.");
-    autoRefineStarted.current=false;
-  } finally {
-    setBusy(false);
-    setAutoRefining(false);
-  }
- }
+ // Refinement is deliberately user-approved. Rivu never mutates a dataset merely because it was uploaded.
 
  async function ai() {
   setBusy(true);
