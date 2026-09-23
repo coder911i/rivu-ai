@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import styles from "./dataset.module.css";
 import { authFetch } from "../../../../lib/api";
 import BrandLogo from "../../../../lib/BrandLogo";
+import CursorField from "../../../../lib/CursorField";
+import ProcessingRail from "../../../../lib/ProcessingRail";
 const API=process.env.NEXT_PUBLIC_API_URL||"http://127.0.0.1:8000/api/v1";
 const authHeaders=()=>({Authorization:"Bearer "+(typeof window!=="undefined"?localStorage.getItem("rivu_access_token")||"":"")});
 
@@ -157,7 +159,7 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
   }
  }
  return (
-  <main className={styles.page}>
+  <main className={styles.page}><CursorField/>
    <header>
     <div className={styles.headerLeft}><a href="/dashboard"><ArrowLeft size={16}/> Workspace</a><BrandLogo href="/dashboard" className={styles.datasetLogo}/></div>
     <div className={styles.secure}><ShieldCheck size={15}/> Tenant-isolated data</div>
@@ -168,7 +170,7 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
      <Loader2 className={styles.spin}/>
      <h2>Refining your dataset...</h2>
      <p>Rivu is profiling structure, quality and consistency.</p>
-     {error&&<div className={styles.error}>{error}</div>}
+     {error&&<div className={styles.error}>{error}</div>}<ProcessingRail active={busy||running} label={running?"Applying approved refinement":"Analyzing dataset"}/>
      <button onClick={load}>Refresh</button>
     </div>
    ) : (
