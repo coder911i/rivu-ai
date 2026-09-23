@@ -19,6 +19,51 @@ from app.ai.base import AIMessage
 from app.ingestion.parser import parse_to_polars
 
 router=APIRouter()
+async def build_ai_report(facts: dict, fallback_score: float) -> dict:
+    """Build a fact-grounded Rivu executive intelligence report."""
+    prompt = """You are Rivu AI's senior data intelligence analyst.
+Create a professional executive report from the supplied measured dataset facts only.
+Never invent, estimate, or imply numbers that are not present. Separate measured facts from interpretation.
+Return ONLY valid JSON with exactly these keys:
+headline (string), executive_summary (string, 2-4 sentences), data_story (string, 2-4 sentences),
+key_findings (array of 4-6 concise strings), risk_analysis (array of 3-5 concise strings),
+recommended_actions (array of 4-6 concrete strings), strengths (array of 3-5 strings),
+risks (array of 3-5 strings), actions (array of 3-5 strings), data_readiness (number 0-100),
+confidence_note (string).
+Use measured quality dimensions, issue severities, affected columns, null/duplicate rates and refinement history when available.
+Do not praise the product. The report is about the dataset.
+FACTS:
+""" + json.dumps(facts, default=str)
+    try:
+        response = await get_ai_provider().complete_json([
+            AIMessage("system", "You are Rivu's senior data intelligence analyst. Be rigorous, factual and decision-useful."),
+            AIMessage("user", prompt),
+        ], temperature=0.1, max_tokens=2800)
+        try:
+            ai = json.loads(response.content)
+        except Exception:
+            ai = {"headline":"Dataset intelligence","executive_summary":response.content[:1800],"data_story":"Measured dataset facts are shown below.","key_findings":[],"risk_analysis":[],"recommended_actions":[],"strengths":[],"risks":[],"actions":[],"data_readiness":fallback_score,"confidence_note":"Generated from measured profile and quality data."}
+        return {**ai, "model":response.model, "provider":response.provider, "latency_ms":response.latency_ms}
+    except Exception as exc:
+        return {"headline":"Dataset intelligence","executive_summary":"The measured dataset profile and quality scores remain authoritative. AI narrative generation is temporarily unavailable.","data_story":"Use the measured quality dimensions and issue register below as the source of truth.","key_findings":[],"risk_analysis":[],"recommended_actions":[],"strengths":[],"risks":[],"actions":[],"data_readiness":fallback_score,"confidence_note":"AI narrative unavailable; measured metrics remain authoritative.","error":str(exc)[:300]}
+
+def draw_rivu_brand(canvas, doc):
+    """Draw the Rivu AI mark on every generated report page."""
+    canvas.saveState()
+    from reportlab.lib.units import mm
+    x, y = 18*mm, 282*mm
+    canvas.setFillColorRGB(0.12, 0.08, 0.16)
+    canvas.rect(x, y, 7*mm, 7*mm, fill=1, stroke=0)
+    canvas.setFillColorRGB(0.55, 0.34, 0.95)
+    canvas.rect(x+8*mm, y, 7*mm, 7*mm, fill=1, stroke=0)
+    canvas.rect(x, y-8*mm, 7*mm, 7*mm, fill=1, stroke=0)
+    canvas.setFillColorRGB(0.12, 0.08, 0.16)
+    canvas.rect(x+8*mm, y-8*mm, 7*mm, 7*mm, fill=1, stroke=0)
+    canvas.setFillColorRGB(0.10,0.08,0.13); canvas.setFont("Helvetica-Bold",15); canvas.drawString(x+18*mm,y-2*mm,"rivu")
+    canvas.setFillColorRGB(0.55,0.34,0.95); canvas.setFont("Helvetica",15); canvas.drawString(x+43*mm,y-2*mm,"ai")
+    canvas.setStrokeColorRGB(0.86,0.85,0.90); canvas.line(18*mm,13*mm,192*mm,13*mm)
+    canvas.setFillColorRGB(0.42,0.41,0.48); canvas.setFont("Helvetica",7); canvas.drawRightString(192*mm,8*mm,"Rivu AI · Confidential data intelligence · Page %d" % doc.page)
+    canvas.restoreState()
 
 @router.get("/{dataset_id}/json")
 async def report_json(dataset_id: UUID, current_user: User=Depends(get_current_user), db: AsyncSession=Depends(get_session)):
@@ -73,20 +118,10 @@ async def report_dashboard(dataset_id: UUID, current_user: User=Depends(get_curr
                 payload["artifacts"][ext]={"filename":key.rsplit("/",1)[-1],"download_url":await get_storage().get_download_url(key,expires_in=900)}
             except Exception:
                 pass
-    ai_prompt = f"""Create an executive data intelligence summary for this Rivu report. Use ONLY the supplied facts. Do not invent numbers. Return JSON with keys: headline, summary, strengths (array of strings), risks (array of strings), actions (array of strings), data_readiness (number 0-100). Keep each item concise.
-FACTS:
-{json.dumps({"dataset":payload["dataset"],"profile":payload["profile"],"quality":payload["quality"],"issues":payload["issues"][:20],"refinement":payload["refinement"],"columns":payload["columns"][:40]},default=str)}"""
-    try:
-        response=await get_ai_provider().complete_json([
-            AIMessage("system","You are Rivu's senior data intelligence analyst. Be precise, factual and concise."),
-            AIMessage("user",ai_prompt),
-        ],temperature=0.1,max_tokens=1800)
-        try: ai=json.loads(response.content)
-        except Exception:
-            ai={"headline":"Dataset intelligence generated","summary":response.content[:1200],"strengths":[],"risks":[],"actions":[],"data_readiness":float(quality.overall_score)}
-        payload["ai"]={**ai,"model":response.model,"provider":response.provider,"latency_ms":response.latency_ms}
-    except Exception as exc:
-        payload["ai"]={"headline":"Dataset intelligence","summary":"AI executive summary is temporarily unavailable. The measured quality report below remains authoritative.","strengths":[],"risks":[],"actions":[],"data_readiness":float(quality.overall_score),"error":str(exc)}
+    payload["ai"] = await build_ai_report(
+        {"dataset":payload["dataset"],"profile":payload["profile"],"quality":payload["quality"],"issues":payload["issues"][:50],"refinement":payload["refinement"],"columns":payload["columns"][:60]},
+        float(quality.overall_score),
+    )
     return payload
 
 
