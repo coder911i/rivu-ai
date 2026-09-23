@@ -192,10 +192,18 @@ Refinement: {refinement_summary}"""
         pass
 
     buf = io.BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=A4, rightMargin=16*mm, leftMargin=16*mm, topMargin=16*mm, bottomMargin=16*mm)
+    doc = SimpleDocTemplate(buf, pagesize=A4, rightMargin=16*mm, leftMargin=16*mm, topMargin=25*mm, bottomMargin=18*mm, onFirstPage=draw_rivu_brand, onLaterPages=draw_rivu_brand)
     styles = getSampleStyleSheet()
     title = ParagraphStyle("RivuTitle", parent=styles["Title"], fontSize=22, textColor=colors.HexColor("#172033"))
     body = ParagraphStyle("RivuBody", parent=styles["BodyText"], fontSize=9, leading=13)
+    ai_report = await build_ai_report(
+        {"dataset":{"name":ds.name,"source":ds.original_filename,"version":ds.current_version},
+         "profile":{"rows":profile.row_count if profile else 0,"columns":profile.column_count if profile else 0,"duplicates":profile.duplicate_row_count if profile else 0,"null_pct":float(profile.total_null_pct or 0) if profile else 0},
+         "quality":{"overall":float(quality.overall_score) if quality else 0,"completeness":float(quality.completeness_score or 0),"validity":float(quality.validity_score or 0),"consistency":float(quality.consistency_score or 0),"uniqueness":float(quality.uniqueness_score or 0),"integrity":float(quality.integrity_score or 0)},
+         "issues":[{"severity":i.severity,"title":i.title,"column":i.affected_column,"rows":i.affected_row_count} for i in issues[:50]],
+         "refinement":refinement_summary},
+        float(quality.overall_score) if quality else 0,
+    )
     story = [
         Paragraph("RIVU AI", title),
         Paragraph("Data Quality & Intelligence Report", styles["Heading2"]),
@@ -205,7 +213,14 @@ Refinement: {refinement_summary}"""
         Paragraph(f"<b>Version:</b> {ds.current_version}", body),
         Spacer(1, 8),
         Paragraph("<b>AI executive summary</b>", styles["Heading2"]),
-        Paragraph(ai_summary, body),
+        Paragraph(ai_report.get("executive_summary") or ai_summary, body),
+        Spacer(1, 7),
+        Paragraph("<b>Key findings</b>", styles["Heading2"]),
+        *[Paragraph("• "+str(x), body) for x in (ai_report.get("key_findings") or [])[:6]],
+        Paragraph("<b>Risk analysis</b>", styles["Heading2"]),
+        *[Paragraph("• "+str(x), body) for x in (ai_report.get("risk_analysis") or [])[:5]],
+        Paragraph("<b>Recommended actions</b>", styles["Heading2"]),
+        *[Paragraph("• "+str(x), body) for x in (ai_report.get("recommended_actions") or [])[:6]],
         Spacer(1, 10),
     ]
     if profile:
@@ -291,7 +306,7 @@ async def executive_pdf(dataset_id: UUID, current_user: User = Depends(get_curre
 
     top_issues=sorted(issues,key=lambda x: {"critical":0,"high":1,"medium":2,"low":3}.get(str(x.severity).lower(),4))[:8]
     buf=io.BytesIO()
-    doc=SimpleDocTemplate(buf,pagesize=A4,rightMargin=18*mm,leftMargin=18*mm,topMargin=18*mm,bottomMargin=18*mm)
+    doc=SimpleDocTemplate(buf,pagesize=A4,rightMargin=18*mm,leftMargin=18*mm,topMargin=25*mm,bottomMargin=18*mm,onFirstPage=draw_rivu_brand,onLaterPages=draw_rivu_brand)
     styles=getSampleStyleSheet()
     title=ParagraphStyle("ExecTitle",parent=styles["Title"],fontSize=24,textColor=colors.HexColor("#172033"))
     body=ParagraphStyle("ExecBody",parent=styles["BodyText"],fontSize=9,leading=13)
