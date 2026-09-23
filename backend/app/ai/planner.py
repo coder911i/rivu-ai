@@ -241,6 +241,30 @@ def _build_compact_context(profile: dict, quality_report: dict, column_profiles:
         },
         "columns": col_summaries,
         "detected_issues": issues_summary,
+        "detected_domain": _detect_domain(profile, column_profiles),
+        "source_format": profile.get("file_format"),
+        "source_filename": profile.get("filename"),
+        "previous_transformations": profile.get("previous_transformations", []),
+        "user_requirements": profile.get("user_requirements"),
     }
 
     return json.dumps(context, indent=2)
+
+
+def _detect_domain(profile: dict, column_profiles: list[dict]) -> str:
+    """Infer a conservative dataset domain from filename/column vocabulary."""
+    text = " ".join([
+        str(profile.get("filename") or ""),
+        *(str(c.get("column_name") or "") for c in column_profiles[:100]),
+    ]).lower()
+    rules = {
+        "financial_transactions": ("revenue", "amount", "transaction", "invoice", "payment", "balance", "profit"),
+        "customer_data": ("customer", "email", "phone", "address", "customer_id", "segment"),
+        "sales": ("sales", "order", "quantity", "unit_price", "product", "deal", "pipeline"),
+        "product_catalog": ("sku", "product", "catalog", "category", "inventory", "stock"),
+        "employee_data": ("employee", "salary", "department", "designation", "employee_id", "hire_date"),
+        "marketing": ("campaign", "impressions", "clicks", "ctr", "conversion", "lead", "source"),
+    }
+    scores = {domain: sum(1 for token in tokens if token in text) for domain, tokens in rules.items()}
+    domain, score = max(scores.items(), key=lambda item: item[1])
+    return domain if score >= 2 else "general_business_data"
