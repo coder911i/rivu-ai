@@ -157,6 +157,17 @@ test("Rivu full data-refinery flow", async ({ page, request }) => {
   expect((await parquetArtifact.body()).subarray(0, 4).toString()).toBe("PAR1");
 
   // 8. Verify the live report and PDF endpoints after refinement.
+  const xlsxExport = await request.get(
+    `${api()}/datasets/${datasetId}/export/${execution.version.number}?format=xlsx`,
+    { headers: auth },
+  );
+  expect(xlsxExport.ok()).toBeTruthy();
+  const xlsxExportBody = await xlsxExport.json();
+  expect(xlsxExportBody.format).toBe("xlsx");
+  const xlsxExportDownload = await request.get(xlsxExportBody.download_url);
+  expect(xlsxExportDownload.ok()).toBeTruthy();
+  expect((await xlsxExportDownload.body()).subarray(0, 2).toString()).toBe("PK");
+
   const dashboard = await request.get(`${api()}/reports/${datasetId}/dashboard`, { headers: auth });
   expect(dashboard.ok()).toBeTruthy();
   const report = await dashboard.json();
