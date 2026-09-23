@@ -132,15 +132,16 @@ async def execute_plan(
         TransformationPlan.id == body.plan_id,
         TransformationPlan.dataset_version_id == source_version.id,
         TransformationPlan.organization_id == org,
-    ))).scalar_one_or_none()
+    ))).with_for_update().scalar_one_or_none()
     if not plan:
         raise HTTPException(404, "Transformation plan not found")
 
     if plan.status != "approved":
         raise HTTPException(409, "Transformation plan is not executable in its current state")
 
-    if plan.status == "executed":
-        raise HTTPException(409, "Transformation plan has already been executed")
+    # Serialize execution per plan so two concurrent requests cannot create the same version.
+    plan.status = "running"
+    await db.flush()
 
     df, source_raw = await _load_dataframe(source_version)
     operations = plan.operations
@@ -191,10 +192,6 @@ async def execute_plan(
                     value = value.isoformat()
                 sheet.cell(row=row_index, column=col_index, value=value)
         buf = io.BytesIO(); workbook.save(buf); return buf.getvalue()
-    def make_xls():
-        import pandas as pd
-        buf = io.BytesIO(); pd.DataFrame(output_df.to_dicts()).to_excel(buf, index=False, engine="xlwt"); return buf.getvalue()
-
     schema_payload = {
         "version": next_version,
         "row_count": output_df.height,
@@ -206,7 +203,6 @@ async def execute_plan(
         "json": (make_json, "application/json"),
         "parquet": (make_parquet, "application/octet-stream"),
         "xlsx": (make_xlsx, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
-        "xls": (make_xls, "application/vnd.ms-excel"),
         "schema.json": (lambda: json.dumps(schema_payload, indent=2).encode("utf-8"), "application/json"),
     }
     artifacts = {}
@@ -217,7 +213,8 @@ async def execute_plan(
         await get_storage().upload_file(key, artifact_data, content_type, metadata)
         artifacts[ext] = {"filename": filename, "storage_key": key, "download_url": await get_storage().get_download_url(key, expires_in=900), "size_bytes": len(artifact_data)}
 
-    output_format = source_version.file_format if source_version.file_format in {"csv", "json", "parquet", "xlsx", "xls"} else "xlsx"
+    # Refined outputs use modern XLSX for legacy XLS sources; xlwt is intentionally not used.
+    output_format = source_version.file_format if source_version.file_format in {"csv", "json", "parquet", "xlsx"} else "xlsx"
     canonical = artifacts[output_format]
     storage_key = canonical["storage_key"]
     data = await get_storage().download_file(storage_key)

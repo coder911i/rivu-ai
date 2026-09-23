@@ -1,29 +1,32 @@
 name: Rivu E2E
 
 on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
+  deployment_status:
 
 permissions:
   contents: read
 
 jobs:
   e2e:
+    if: github.event_name != 'deployment_status' || github.event.deployment_status.state == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
-      E2E_BASE_URL: ${{ secrets.E2E_BASE_URL }}
+      E2E_BASE_URL: ${{ secrets.E2E_BASE_URL || github.event.deployment_status.target_url }}
       E2E_API_URL: ${{ secrets.E2E_API_URL }}
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-
-      - run: npm install --no-audit --no-fund
+      - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
-
       - name: Upload Playwright report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
