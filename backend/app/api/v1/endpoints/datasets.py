@@ -256,7 +256,7 @@ async def export_dataset(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_session),
 ):
-    """Get a presigned download URL for a dataset version."""
+    """Get a presigned download URL for a dataset version or its generated sibling artifact."""
     org_id = await _get_user_org(current_user, db)
     ds = await _get_dataset_or_404(dataset_id, org_id, db)
 
@@ -270,9 +270,36 @@ async def export_dataset(
     if not version:
         raise http_not_found("Dataset version", str(version_number))
 
-    storage = get_storage()
+    requested = (format or version.file_format).lower().lstrip(".")
+    allowed = {"csv", "json", "parquet", "xlsx"}
+    if requested not in allowed:
+        raise HTTPException(status_code=400, detail={"message": f"Unsupported export format: {requested}"})
+
+    storage_key = version.storage_key
+    output_format = version.file_format
+
+    if requested != version.file_format:
+        # Refined versions create sibling artifacts under the same vN directory.
+        # Raw uploads only have their original source artifact.
+        if not version.version_label.startswith("refined"):
+            raise HTTPException(
+                status_code=404,
+                detail={"message": f"{requested.upper()} is not available for this version"},
+            )
+        prefix = version.storage_key.rsplit("/", 1)[0]
+        stem = version.storage_key.rsplit("/", 1)[1].rsplit(".", 1)[0]
+        candidate_key = f"{prefix}/{stem}.{requested}"
+        storage = get_storage()
+        if not await storage.file_exists(candidate_key):
+            raise HTTPException(
+                status_code=404,
+                detail={"message": f"{requested.upper()} artifact is not available for this version"},
+            )
+        storage_key = candidate_key
+        output_format = requested
+
     try:
-        url = await storage.get_download_url(version.storage_key, expires_in=3600)
+        url = await get_storage().get_download_url(storage_key, expires_in=3600)
     except Exception as e:
         raise HTTPException(status_code=500, detail={"message": f"Could not generate download URL: {e}"})
 
@@ -280,8 +307,8 @@ async def export_dataset(
         "download_url": url,
         "expires_in": 3600,
         "version": version_number,
-        "format": version.file_format,
-        "filename": f"{ds.name}_v{version_number}.{version.file_format}",
+        "format": output_format,
+        "filename": f"{ds.name}_v{version_number}.{output_format}",
     }
 
 
