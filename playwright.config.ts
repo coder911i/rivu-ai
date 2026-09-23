@@ -3,8 +3,10 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "./e2e",
   timeout: 120_000,
+  globalTimeout: 45 * 60 * 1000,
   expect: { timeout: 15_000 },
   fullyParallel: false,
+  workers: process.env.CI ? 1 : undefined,
   retries: process.env.CI ? 1 : 0,
   reporter: [["html", { open: "never" }], ["line"]],
   use: {
