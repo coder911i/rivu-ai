@@ -135,7 +135,9 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_session)):
         .limit(1)
     )
     row = membership_result.first()
-    org_id = str(row.Organization.id) if row else None
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"message": "No workspace membership", "type": "forbidden"})
+    org_id = str(row.Organization.id)
     org_name = row.Organization.name if row else None
 
     # Update last login
