@@ -6,6 +6,7 @@ PostgreSQL row locks ensure only one worker claims a queued job at a time.
 """
 import asyncio
 from datetime import datetime, timedelta, timezone
+from uuid import UUID
 
 import structlog
 from sqlalchemy import select
@@ -76,17 +77,20 @@ async def _claim_one_job():
 async def _process_claim(claim: dict) -> None:
     from app.models.dataset import DatasetVersion
 
+    job_uuid = UUID(claim["job_id"])
+    version_uuid = UUID(claim["version_id"])
+    source_uuid = UUID(claim["data_source_id"])
     async with database._session_factory() as db:
         source_result = await db.execute(
-            select(DataSource).where(DataSource.id == claim["data_source_id"])
+            select(DataSource).where(DataSource.id == source_uuid)
         )
         source = source_result.scalar_one_or_none()
         version_result = await db.execute(
-            select(DatasetVersion).where(DatasetVersion.id == claim["version_id"])
+            select(DatasetVersion).where(DatasetVersion.id == version_uuid)
         )
         version = version_result.scalar_one_or_none()
         if source is None or version is None:
-            job_result = await db.execute(select(Job).where(Job.id == claim["job_id"]))
+            job_result = await db.execute(select(Job).where(Job.id == job_uuid))
             job = job_result.scalar_one_or_none()
             if job:
                 job.status = "failed"
@@ -129,7 +133,7 @@ async def run_worker() -> None:
             except Exception as exc:
                 logger.exception("worker_job_unhandled_error", job_id=claim["job_id"], error=str(exc))
                 async with database._session_factory() as db:
-                    result = await db.execute(select(Job).where(Job.id == claim["job_id"]))
+                    result = await db.execute(select(Job).where(Job.id == job_uuid))
                     job = result.scalar_one_or_none()
                     if job:
                         job.status = "failed" if job.attempts >= job.max_attempts else "queued"
