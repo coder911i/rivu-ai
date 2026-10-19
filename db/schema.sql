@@ -60,6 +60,8 @@ CREATE TABLE users (
   username      VARCHAR(50) NOT NULL UNIQUE,
   full_name     VARCHAR(200),
   password_hash TEXT NOT NULL,
+  token_version INTEGER NOT NULL DEFAULT 0,
+  refresh_token_version INTEGER NOT NULL DEFAULT 0,
   status        user_status NOT NULL DEFAULT 'active',
   avatar_url    TEXT,
   last_login_at TIMESTAMPTZ,
