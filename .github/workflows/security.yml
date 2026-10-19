@@ -60,4 +60,7 @@ jobs:
       - uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
+      # Analyze locally; this repository has Code Scanning uploads disabled in settings.
       - uses: github/codeql-action/analyze@v3
+        with:
+          upload: false
