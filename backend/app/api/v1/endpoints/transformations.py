@@ -36,7 +36,8 @@ class ExecutePlanRequest(BaseModel):
 async def _org(user: User, db: AsyncSession) -> UUID:
     result = await db.execute(
         select(Membership.organization_id).where(
-            Membership.user_id == user.id
+            Membership.user_id == user.id,
+            Membership.organization_id == getattr(user, "active_org_id", None),
         ).limit(1)
     )
     org = result.scalar_one_or_none()
