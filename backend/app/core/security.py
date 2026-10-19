@@ -37,10 +37,10 @@ def create_access_token(subject: str | UUID, extra: dict[str, Any] | None = None
     return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
 
-def create_refresh_token(subject: str | UUID) -> str:
+def create_refresh_token(subject: str | UUID, extra: dict[str, Any] | None = None) -> str:
     now = datetime.now(timezone.utc)
     expire = now + timedelta(days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS)
-    payload = {"sub": str(subject), "iat": now, "exp": expire, "type": "refresh"}
+    payload = {"sub": str(subject), "iat": now, "exp": expire, "type": "refresh", **(extra or {})}
     return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
 
@@ -82,6 +82,8 @@ async def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     if user.status != "active":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is not active")
+    if payload.get("tv", 0) != user.token_version:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session has been revoked")
 
     # Bind every request to the workspace explicitly encoded in the access token.
     from app.models.organization import Membership
