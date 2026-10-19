@@ -67,7 +67,7 @@ def draw_rivu_brand(canvas, doc):
 
 @router.get("/{dataset_id}/json")
 async def report_json(dataset_id: UUID, current_user: User=Depends(get_current_user), db: AsyncSession=Depends(get_session)):
-    org=(await db.execute(select(Membership.organization_id).where(Membership.user_id==current_user.id).limit(1))).scalar_one_or_none()
+    org=(await db.execute(select(Membership.organization_id).where(Membership.user_id==current_user.id, Membership.organization_id==getattr(current_user, "active_org_id", None)).limit(1))).scalar_one_or_none()
     ds=(await db.execute(select(DataSource).where(DataSource.id==dataset_id,DataSource.organization_id==org))).scalar_one_or_none()
     if not ds: raise HTTPException(404,"Dataset not found")
     version=(await db.execute(select(DatasetVersion).where(DatasetVersion.data_source_id==ds.id,DatasetVersion.version_number==ds.current_version))).scalar_one_or_none()
@@ -85,7 +85,7 @@ async def report_json(dataset_id: UUID, current_user: User=Depends(get_current_u
 @router.get("/{dataset_id}/dashboard")
 async def report_dashboard(dataset_id: UUID, current_user: User=Depends(get_current_user), db: AsyncSession=Depends(get_session)):
     """Return the live Power BI-style report payload plus an AI executive summary."""
-    org=(await db.execute(select(Membership.organization_id).where(Membership.user_id==current_user.id).limit(1))).scalar_one_or_none()
+    org=(await db.execute(select(Membership.organization_id).where(Membership.user_id==current_user.id, Membership.organization_id==getattr(current_user, "active_org_id", None)).limit(1))).scalar_one_or_none()
     ds=(await db.execute(select(DataSource).where(DataSource.id==dataset_id,DataSource.organization_id==org))).scalar_one_or_none()
     if not ds: raise HTTPException(404,"Dataset not found")
     version=(await db.execute(select(DatasetVersion).where(DatasetVersion.data_source_id==ds.id, DatasetVersion.version_number==ds.current_version))).scalar_one_or_none()
@@ -139,7 +139,7 @@ async def report_pdf(
     from reportlab.lib.units import mm
 
     org = (await db.execute(
-        select(Membership.organization_id).where(Membership.user_id == current_user.id).limit(1)
+        select(Membership.organization_id).where(Membership.user_id == current_user.id, Membership.organization_id == getattr(current_user, "active_org_id", None)).limit(1)
     )).scalar_one_or_none()
     ds = (await db.execute(
         select(DataSource).where(DataSource.id == dataset_id, DataSource.organization_id == org)
@@ -294,7 +294,7 @@ async def executive_pdf(dataset_id: UUID, current_user: User = Depends(get_curre
     from reportlab.lib import colors
     from reportlab.lib.units import mm
 
-    org=(await db.execute(select(Membership.organization_id).where(Membership.user_id==current_user.id).limit(1))).scalar_one_or_none()
+    org=(await db.execute(select(Membership.organization_id).where(Membership.user_id==current_user.id, Membership.organization_id==getattr(current_user, "active_org_id", None)).limit(1))).scalar_one_or_none()
     ds=(await db.execute(select(DataSource).where(DataSource.id==dataset_id,DataSource.organization_id==org))).scalar_one_or_none()
     if not ds: raise HTTPException(404,"Dataset not found")
     version=(await db.execute(select(DatasetVersion).where(DatasetVersion.data_source_id==ds.id,DatasetVersion.version_number==ds.current_version))).scalar_one_or_none()
