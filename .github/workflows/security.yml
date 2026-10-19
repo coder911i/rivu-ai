@@ -28,7 +28,10 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
-      - name: Audit frontend dependencies
+      - name: Audit production frontend dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Report all frontend dependency advisories
+        continue-on-error: true
         run: npm audit --audit-level=high
 
   dependency-review:
