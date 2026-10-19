@@ -1,5 +1,4 @@
 """Pydantic schemas for authentication."""
-
 from pydantic import BaseModel, EmailStr, field_validator
 import re
 
@@ -41,6 +40,24 @@ class SignupRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+
+class EmailTokenRequest(BaseModel):
+    token: str
+
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetCompleteRequest(BaseModel):
+    token: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        return SignupRequest.validate_password(v)
 
 
 class TokenResponse(BaseModel):
