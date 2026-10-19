@@ -241,6 +241,8 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_session)):
             detail={"message": "Invalid email or password", "type": "unauthorized"},
         )
 
+    if user.status == "pending_verification":
+        raise HTTPException(status_code=403, detail={"message": "Please verify your email before signing in", "type": "email_verification_required"})
     if user.status != "active":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
