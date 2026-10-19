@@ -25,6 +25,11 @@ async def process_dataset_async(
     file_format: str,
 ):
     """Full processing pipeline run in background."""
+    job_uuid = UUID(str(job_id))
+    version_uuid = UUID(str(version_id))
+    source_uuid = UUID(str(data_source_id))
+    org_uuid = UUID(str(org_id))
+
     from app.core.database import _session_factory
     from app.models.quality import Job, JobLog, QualityReport, QualityIssue
     from app.models.profile import DataProfile, ColumnProfile
@@ -37,7 +42,7 @@ async def process_dataset_async(
         try:
             # ── Update job to processing ──────────────
             from sqlalchemy import select
-            job_result = await db.execute(select(Job).where(Job.id == job_id))
+            job_result = await db.execute(select(Job).where(Job.id == job_uuid))
             job = job_result.scalar_one()
             job.status = "processing"
             job.started_at = datetime.now(timezone.utc)
@@ -49,7 +54,7 @@ async def process_dataset_async(
             try:
                 if raw_bytes is None:
                     from app.core.storage import get_storage
-                    version_result = await db.execute(select(DatasetVersion).where(DatasetVersion.id == version_id))
+                    version_result = await db.execute(select(DatasetVersion).where(DatasetVersion.id == version_uuid))
                     version = version_result.scalar_one()
                     raw_bytes = await get_storage().download_file(version.storage_key)
                 df, parse_meta = parse_to_polars(raw_bytes, file_format, "upload")
@@ -63,15 +68,15 @@ async def process_dataset_async(
 
             # ── Profile ───────────────────────────────
             try:
-                profile_data = profile_dataframe(df, org_id)
+                profile_data = profile_dataframe(df, str(org_uuid))
             except Exception as e:
                 await _fail_job(db, job, f"Profiling failed: {e}")
                 return
 
             # Persist DataProfile
             profile = DataProfile(
-                dataset_version_id=version_id,
-                organization_id=org_id,
+                dataset_version_id=version_uuid,
+                organization_id=org_uuid,
                 row_count=profile_data["row_count"],
                 column_count=profile_data["column_count"],
                 duplicate_row_count=profile_data["duplicate_row_count"],
@@ -92,8 +97,8 @@ async def process_dataset_async(
             for col_data in profile_data["columns"]:
                 cp = ColumnProfile(
                     data_profile_id=profile.id,
-                    dataset_version_id=version_id,
-                    organization_id=org_id,
+                    dataset_version_id=version_uuid,
+                    organization_id=org_uuid,
                     column_index=col_data["column_index"],
                     column_name=col_data["column_name"],
                     inferred_type=col_data["inferred_type"],
@@ -136,8 +141,8 @@ async def process_dataset_async(
                 quality_data = {"overall_score": 0, "issues": [], "total_issues": 0}
 
             qr = QualityReport(
-                dataset_version_id=version_id,
-                organization_id=org_id,
+                dataset_version_id=version_uuid,
+                organization_id=org_uuid,
                 overall_score=quality_data["overall_score"],
                 completeness_score=quality_data.get("completeness_score"),
                 validity_score=quality_data.get("validity_score"),
@@ -157,8 +162,8 @@ async def process_dataset_async(
             for issue in quality_data.get("issues", []):
                 qi = QualityIssue(
                     quality_report_id=qr.id,
-                    dataset_version_id=version_id,
-                    organization_id=org_id,
+                    dataset_version_id=version_uuid,
+                    organization_id=org_uuid,
                     issue_type=issue["issue_type"],
                     severity=issue["severity"],
                     title=issue["title"],
@@ -174,7 +179,7 @@ async def process_dataset_async(
 
             # ── Update version with stats ─────────────
             version_result = await db.execute(
-                select(DatasetVersion).where(DatasetVersion.id == version_id)
+                select(DatasetVersion).where(DatasetVersion.id == version_uuid)
             )
             version = version_result.scalar_one()
             version.row_count = profile_data["row_count"]
@@ -183,7 +188,7 @@ async def process_dataset_async(
 
             # ── Update DataSource status ──────────────
             ds_result = await db.execute(
-                select(DataSource).where(DataSource.id == data_source_id)
+                select(DataSource).where(DataSource.id == source_uuid)
             )
             ds = ds_result.scalar_one()
             ds.status = "profiled"
@@ -209,13 +214,13 @@ async def process_dataset_async(
             await db.commit()
             logger.info(
                 "processing_complete",
-                job_id=job_id,
+                job_id=str(job_uuid),
                 rows=profile_data["row_count"],
                 quality=quality_data["overall_score"],
             )
 
         except Exception as e:
-            logger.error("processing_pipeline_error", job_id=job_id, error=str(e), traceback=traceback.format_exc())
+            logger.error("processing_pipeline_error", job_id=str(job_uuid), error=str(e), traceback=traceback.format_exc())
             try:
                 await _fail_job(db, job, str(e))
             except Exception:
