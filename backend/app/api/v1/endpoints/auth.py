@@ -150,6 +150,85 @@ async def signup(body: SignupRequest, db: AsyncSession = Depends(get_session)):
     }
 
 
+
+@router.post("/verify-email", response_model=dict)
+async def verify_email(body: EmailTokenRequest, db: AsyncSession = Depends(get_session)):
+    """Verify an email address using a single-use, time-limited token."""
+    result = await db.execute(
+        select(User).where(User.email_verification_token_hash == _hash_email_token(body.token))
+    )
+    user = result.scalar_one_or_none()
+    now = datetime.now(timezone.utc)
+    if not user or not user.email_verification_expires_at or user.email_verification_expires_at <= now:
+        raise HTTPException(status_code=400, detail={"message": "Verification link is invalid or expired", "type": "invalid_token"})
+    user.email_verified = True
+    if user.status == "pending_verification":
+        user.status = "active"
+    user.email_verification_token_hash = None
+    user.email_verification_expires_at = None
+    await db.commit()
+    return {"message": "Email verified successfully. You can now sign in."}
+
+
+@router.post("/resend-verification", response_model=dict)
+async def resend_verification(body: PasswordResetRequest, db: AsyncSession = Depends(get_session)):
+    """Resend verification without revealing whether an email is registered."""
+    if not _smtp_is_configured():
+        raise HTTPException(status_code=503, detail={"message": "Email delivery is not configured", "type": "email_delivery_unavailable"})
+    result = await db.execute(select(User).where(User.email == body.email))
+    user = result.scalar_one_or_none()
+    if user and not user.email_verified:
+        token = secrets.token_urlsafe(32)
+        user.email_verification_token_hash = _hash_email_token(token)
+        user.email_verification_expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
+        await db.commit()
+        try:
+            await _send_account_email(user, token, purpose="verify")
+        except Exception as exc:
+            logger.error("verification_email_failed", user_id=str(user.id), error=str(exc))
+            raise HTTPException(status_code=503, detail={"message": "Email delivery is temporarily unavailable", "type": "email_delivery_unavailable"}) from exc
+    return {"message": "If the account exists and needs verification, an email will be sent."}
+
+
+@router.post("/password-reset/request", response_model=dict)
+async def request_password_reset(body: PasswordResetRequest, db: AsyncSession = Depends(get_session)):
+    """Issue a short-lived password reset link without disclosing account existence."""
+    if not _smtp_is_configured():
+        raise HTTPException(status_code=503, detail={"message": "Email delivery is not configured", "type": "email_delivery_unavailable"})
+    result = await db.execute(select(User).where(User.email == body.email))
+    user = result.scalar_one_or_none()
+    if user and user.status != "suspended":
+        token = secrets.token_urlsafe(32)
+        user.password_reset_token_hash = _hash_email_token(token)
+        user.password_reset_expires_at = datetime.now(timezone.utc) + timedelta(minutes=30)
+        await db.commit()
+        try:
+            await _send_account_email(user, token, purpose="reset")
+        except Exception as exc:
+            logger.error("password_reset_email_failed", user_id=str(user.id), error=str(exc))
+            raise HTTPException(status_code=503, detail={"message": "Email delivery is temporarily unavailable", "type": "email_delivery_unavailable"}) from exc
+    return {"message": "If the account exists, a password reset email will be sent."}
+
+
+@router.post("/password-reset/complete", response_model=dict)
+async def complete_password_reset(body: PasswordResetCompleteRequest, db: AsyncSession = Depends(get_session)):
+    """Consume a one-time reset token and revoke all existing sessions."""
+    result = await db.execute(
+        select(User).where(User.password_reset_token_hash == _hash_email_token(body.token))
+    )
+    user = result.scalar_one_or_none()
+    now = datetime.now(timezone.utc)
+    if not user or not user.password_reset_expires_at or user.password_reset_expires_at <= now:
+        raise HTTPException(status_code=400, detail={"message": "Password reset link is invalid or expired", "type": "invalid_token"})
+    user.password_hash = hash_password(body.new_password)
+    user.token_version += 1
+    user.refresh_token_version += 1
+    user.password_reset_token_hash = None
+    user.password_reset_expires_at = None
+    await db.commit()
+    return {"message": "Password updated successfully. Please sign in again."}
+
+
 @router.post("/login", response_model=dict)
 async def login(body: LoginRequest, db: AsyncSession = Depends(get_session)):
     """Login with email and password."""
