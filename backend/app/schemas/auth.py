@@ -57,7 +57,11 @@ class PasswordResetCompleteRequest(BaseModel):
     @field_validator("new_password")
     @classmethod
     def validate_password(cls, v: str) -> str:
-        return SignupRequest.validate_password(v)
+        if len(v) < 8 or len(v) > 128:
+            raise ValueError("Password must be between 8 and 128 characters")
+        if not any(c.islower() for c in v) or not any(c.isupper() for c in v) or not any(c.isdigit() for c in v):
+            raise ValueError("Password must contain uppercase, lowercase, and numeric characters")
+        return v
 
 
 class TokenResponse(BaseModel):
