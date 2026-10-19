@@ -66,12 +66,16 @@ async def signup(body: SignupRequest, db: AsyncSession = Depends(get_session)):
         raise HTTPException(status_code=409, detail={"message": "Username already taken", "type": "conflict"})
 
     # Create user
+    verification_token = secrets.token_urlsafe(32) if settings.REQUIRE_EMAIL_VERIFICATION else None
     user = User(
         email=body.email,
         username=body.username,
         full_name=body.full_name,
         password_hash=hash_password(body.password),
-        status="active",
+        status="pending_verification" if settings.REQUIRE_EMAIL_VERIFICATION else "active",
+        email_verified=not settings.REQUIRE_EMAIL_VERIFICATION,
+        email_verification_token_hash=_hash_email_token(verification_token) if verification_token else None,
+        email_verification_expires_at=datetime.now(timezone.utc) + timedelta(hours=24) if verification_token else None,
     )
     db.add(user)
     await db.flush()  # get user.id
@@ -107,11 +111,23 @@ async def signup(body: SignupRequest, db: AsyncSession = Depends(get_session)):
     db.add(membership)
     await db.commit()
 
-    # Generate tokens
+    logger.info("user_signup", user_id=str(user.id), email=user.email)
+
+    if settings.REQUIRE_EMAIL_VERIFICATION:
+        try:
+            await _send_account_email(user, verification_token, purpose="verify")
+        except Exception as exc:
+            logger.error("verification_email_failed", user_id=str(user.id), error=str(exc))
+            raise HTTPException(status_code=503, detail={"message": "Account created but verification email could not be sent. Configure SMTP or request another verification email.", "type": "email_delivery_unavailable"}) from exc
+        return {
+            "user": {"id": str(user.id), "email": user.email, "username": user.username, "full_name": user.full_name},
+            "organization": {"id": str(org.id), "name": org.name, "slug": org.slug},
+            "verification_required": True,
+            "message": "Check your email to verify your Rivu account.",
+        }
+
     access_token = create_access_token(user.id, {"org_id": str(org.id), "tv": user.token_version})
     refresh_token = create_refresh_token(user.id, {"rtv": user.refresh_token_version})
-
-    logger.info("user_signup", user_id=str(user.id), email=user.email)
 
     return {
         "user": {
