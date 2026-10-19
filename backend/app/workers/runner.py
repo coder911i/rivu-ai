@@ -8,10 +8,11 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 
 import structlog
-from sqlalchemy import select, update
+from sqlalchemy import select
 
 from app.core.config import settings
-from app.core.database import close_db, get_session, init_db
+from app.core import database
+from app.core.database import close_db, init_db
 from app.models.dataset import DataSource
 from app.models.quality import Job
 from app.workers.processor import process_dataset_async
@@ -48,7 +49,7 @@ async def _recover_stale_jobs(db) -> None:
 
 async def _claim_one_job():
     """Atomically claim the highest-priority queued profiling job."""
-    async with get_session() as db:
+    async with database._session_factory() as db:
         result = await db.execute(
             select(Job)
             .where(Job.status == "queued", Job.job_type == "profile")
@@ -111,7 +112,7 @@ async def run_worker() -> None:
     logger.info("rivu_worker_started", poll_seconds=POLL_SECONDS)
     try:
         while True:
-            async with get_session() as db:
+            async with database._session_factory() as db:
                 await _recover_stale_jobs(db)
             claim = await _claim_one_job()
             if claim is None:
@@ -128,6 +129,7 @@ async def run_worker() -> None:
                         job.status = "failed" if job.attempts >= job.max_attempts else "queued"
                         job.error_message = str(exc)[:2000]
                         job.completed_at = datetime.now(timezone.utc) if job.status == "failed" else None
+                        await db.commit()
     finally:
         await close_db()
 
