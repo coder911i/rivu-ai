@@ -302,7 +302,7 @@ async def refresh_token(body: dict, db: AsyncSession = Depends(get_session)):
     user_id = payload.get("sub")
     if not user_id:
         raise HTTPException(status_code=401, detail={"message": "Invalid refresh token", "type": "unauthorized"})
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(select(User).where(User.id == user_id).with_for_update())
     user = result.scalar_one_or_none()
     if not user or user.status != "active":
         raise HTTPException(status_code=401, detail={"message": "Account is not active", "type": "unauthorized"})
