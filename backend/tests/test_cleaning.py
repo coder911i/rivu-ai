@@ -7,7 +7,7 @@ def test_cleaning_is_deterministic_and_does_not_mutate_source():
     source = pl.DataFrame({"name": ["  Alice  ", "BOB"], "email": [" A@X.COM ", "b@x.com"]})
     result = TransformationEngine(source).execute_operations([
         {"type": "trim_whitespace", "column": "name", "parameters": {}},
-        {"type": "lowercase", "column": "email", "parameters": {}},
+        {"type": "normalize_email", "column": "email", "parameters": {}},
     ])
     assert source["name"].to_list() == ["  Alice  ", "BOB"]
     assert result["df"]["name"].to_list() == ["Alice", "BOB"]

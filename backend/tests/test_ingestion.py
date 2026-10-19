@@ -34,8 +34,8 @@ def test_unsupported_extension_is_rejected():
 
 def test_binary_signature_validation():
     from app.ingestion.parser import validate_file_signature
-
     validate_file_signature(b"PAR1" + b"x", "parquet")
-    validate_file_signature(b"PK\\x03\\x04" + b"x", "xlsx")
+    validate_file_signature(b"PK\x03\x04" + b"x", "xlsx")
+    validate_file_signature(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"x", "xls")
     with pytest.raises(ValidationError):
         validate_file_signature(b"not-a-parquet", "parquet")

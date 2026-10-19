@@ -1,7 +1,5 @@
-import io
 import json
-import pandas as pd
-import polars as pl
+
 import pytest
 
 from app.ingestion.parser import detect_file_format, parse_to_polars, validate_file_signature

@@ -17,9 +17,10 @@ def test_transformation_preserves_source_and_applies_deterministic_operations():
 
     assert source["name"].to_list() == [" Alice ", "Alice", "Bob"]
     assert result["ops_failed"] == 0
-    assert result["df"].height == 3
-    assert result["df"]["name"].to_list() == ["Alice", "Alice", "Bob"]
-    assert result["df"]["email"].to_list() == ["alice@example.com", "alice@example.com", None]
+    # Once normalization runs, the two Alice rows become identical and are deduplicated.
+    assert result["df"].height == 2
+    assert result["df"]["name"].to_list() == ["Alice", "Bob"]
+    assert result["df"]["email"].to_list() == ["alice@example.com", None]
 
 
 @pytest.mark.parametrize(
