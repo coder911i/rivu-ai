@@ -153,7 +153,7 @@ CREATE TABLE data_sources (
   description     TEXT,
   original_filename VARCHAR(500) NOT NULL,
   file_format     VARCHAR(20) NOT NULL,  -- csv, xlsx, json
-  status          dataset_status NOT NULL DEFAULT 'uploading',
+  status          VARCHAR(50) NOT NULL DEFAULT 'uploading',
   current_version INTEGER NOT NULL DEFAULT 1,
   tags            TEXT[] DEFAULT '{}',
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -230,7 +230,7 @@ CREATE TABLE column_profiles (
   column_name         VARCHAR(300) NOT NULL,
   -- Type detection
   inferred_type       VARCHAR(50),
-  semantic_type       column_semantic_type NOT NULL DEFAULT 'unknown',
+  semantic_type       VARCHAR(50) NOT NULL DEFAULT 'unknown',
   ai_semantic_type    VARCHAR(100),
   ai_semantic_reason  TEXT,
   -- Null stats
@@ -305,8 +305,8 @@ CREATE TABLE quality_issues (
   quality_report_id   UUID NOT NULL REFERENCES quality_reports(id) ON DELETE CASCADE,
   dataset_version_id  UUID NOT NULL REFERENCES dataset_versions(id) ON DELETE CASCADE,
   organization_id     UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  issue_type          issue_type NOT NULL,
-  severity            issue_severity NOT NULL,
+  issue_type          VARCHAR(100) NOT NULL,
+  severity            VARCHAR(20) NOT NULL,
   title               TEXT NOT NULL,
   description         TEXT,
   affected_column     VARCHAR(300),
@@ -356,7 +356,7 @@ CREATE TABLE transformation_plans (
   created_by          UUID NOT NULL REFERENCES users(id),
   -- Plan metadata
   plan_version        VARCHAR(20) NOT NULL DEFAULT '1.0',
-  status              transformation_status NOT NULL DEFAULT 'planned',
+  status              VARCHAR(50) NOT NULL DEFAULT 'planned',
   operations          JSONB NOT NULL DEFAULT '[]',  -- ordered list of ops
   total_operations    INTEGER NOT NULL DEFAULT 0,
   estimated_quality_gain NUMERIC(5,2),
@@ -379,7 +379,7 @@ CREATE TABLE transformation_runs (
   output_version_id     UUID REFERENCES dataset_versions(id),
   organization_id       UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   executed_by           UUID NOT NULL REFERENCES users(id),
-  status                transformation_status NOT NULL DEFAULT 'running',
+  status                VARCHAR(50) NOT NULL DEFAULT 'running',
   -- Results
   operations_total      INTEGER NOT NULL DEFAULT 0,
   operations_applied    INTEGER NOT NULL DEFAULT 0,
@@ -510,8 +510,8 @@ CREATE TABLE jobs (
   id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   organization_id   UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   created_by        UUID REFERENCES users(id),
-  job_type          job_type NOT NULL,
-  status            job_status NOT NULL DEFAULT 'queued',
+  job_type          VARCHAR(50) NOT NULL,
+  status            VARCHAR(50) NOT NULL DEFAULT 'queued',
   -- Reference to what this job processes
   data_source_id    UUID REFERENCES data_sources(id) ON DELETE SET NULL,
   dataset_version_id UUID REFERENCES dataset_versions(id) ON DELETE SET NULL,
