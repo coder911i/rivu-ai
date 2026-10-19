@@ -211,6 +211,18 @@ async def refresh_token(body: dict, db: AsyncSession = Depends(get_session)):
     }
 
 
+@router.post("/logout", response_model=dict)
+async def logout(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_session),
+):
+    """Revoke this user's access and refresh tokens for all active sessions."""
+    current_user.token_version += 1
+    current_user.refresh_token_version += 1
+    await db.commit()
+    return {"message": "Logged out successfully"}
+
+
 @router.get("/me", response_model=dict)
 async def get_me(
     current_user: User = Depends(get_current_user),
