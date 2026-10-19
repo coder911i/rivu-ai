@@ -82,8 +82,8 @@ async def signup(body: SignupRequest, db: AsyncSession = Depends(get_session)):
     await db.commit()
 
     # Generate tokens
-    access_token = create_access_token(user.id, {"org_id": str(org.id)})
-    refresh_token = create_refresh_token(user.id)
+    access_token = create_access_token(user.id, {"org_id": str(org.id), "tv": user.token_version})
+    refresh_token = create_refresh_token(user.id, {"rtv": user.refresh_token_version})
 
     logger.info("user_signup", user_id=str(user.id), email=user.email)
 
@@ -144,8 +144,8 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_session)):
     user.last_login_at = datetime.now(timezone.utc)
     await db.commit()
 
-    access_token = create_access_token(user.id, {"org_id": org_id} if org_id else {})
-    refresh_token = create_refresh_token(user.id)
+    access_token = create_access_token(user.id, {"org_id": org_id, "tv": user.token_version})
+    refresh_token = create_refresh_token(user.id, {"rtv": user.refresh_token_version})
 
     logger.info("user_login", user_id=str(user.id))
 
@@ -185,6 +185,8 @@ async def refresh_token(body: dict, db: AsyncSession = Depends(get_session)):
     user = result.scalar_one_or_none()
     if not user or user.status != "active":
         raise HTTPException(status_code=401, detail={"message": "Account is not active", "type": "unauthorized"})
+    if payload.get("rtv", 0) != user.refresh_token_version:
+        raise HTTPException(status_code=401, detail={"message": "Refresh token has been revoked or rotated", "type": "unauthorized"})
     membership_result = await db.execute(
         select(Membership, Organization)
         .join(Organization, Organization.id == Membership.organization_id)
@@ -196,10 +198,13 @@ async def refresh_token(body: dict, db: AsyncSession = Depends(get_session)):
     if row is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"message": "No workspace membership", "type": "forbidden"})
     org_id = str(row.Organization.id)
+    # Rotate refresh tokens on every use; replaying the previous token is rejected.
+    user.refresh_token_version += 1
+    await db.commit()
     return {
         "tokens": {
-            "access_token": create_access_token(user.id, {"org_id": org_id} if org_id else {}),
-            "refresh_token": create_refresh_token(user.id),
+            "access_token": create_access_token(user.id, {"org_id": org_id, "tv": user.token_version}),
+            "refresh_token": create_refresh_token(user.id, {"rtv": user.refresh_token_version}),
             "token_type": "bearer",
             "expires_in": settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         }
