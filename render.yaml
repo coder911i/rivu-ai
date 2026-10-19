@@ -19,6 +19,22 @@ services:
         sync: false
       - key: JWT_SECRET
         generateValue: true
+      - key: REQUIRE_EMAIL_VERIFICATION
+        value: "false"
+      - key: FRONTEND_URL
+        value: https://rivu-ai-murex.vercel.app
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM_EMAIL
+        sync: false
+      - key: SMTP_USE_TLS
+        value: "true"
       - key: GROQ_API_KEY
         sync: false
       - key: GROQ_MODEL
