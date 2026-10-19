@@ -77,7 +77,12 @@ async def init_db() -> None:
         max_overflow=settings.DB_MAX_OVERFLOW,
         pool_timeout=settings.DB_POOL_TIMEOUT,
         pool_pre_ping=True,
-        connect_args={"ssl": "require"},
+        # Local Docker PostgreSQL commonly has TLS disabled; production and explicitly
+        # configured managed databases must use TLS.
+        connect_args={"ssl": "require"} if (
+            settings.APP_ENV.lower() == "production"
+            or "sslmode=require" in settings.DATABASE_URL.lower()
+        ) else {},
         echo=settings.DEBUG,
     )
 
