@@ -130,7 +130,7 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_session)):
     membership_result = await db.execute(
         select(Membership, Organization)
         .join(Organization, Organization.id == Membership.organization_id)
-        .where(Membership.user_id == user.id)
+        .where(Membership.user_id == user.id, Membership.accepted_at.is_not(None))
         .order_by(Membership.created_at.asc())
         .limit(1)
     )
@@ -188,7 +188,7 @@ async def refresh_token(body: dict, db: AsyncSession = Depends(get_session)):
     membership_result = await db.execute(
         select(Membership, Organization)
         .join(Organization, Organization.id == Membership.organization_id)
-        .where(Membership.user_id == user.id)
+        .where(Membership.user_id == user.id, Membership.accepted_at.is_not(None))
         .order_by(Membership.created_at.asc())
         .limit(1)
     )
