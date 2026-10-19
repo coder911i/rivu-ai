@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import datetime
-from sqlalchemy import String, DateTime, Enum as SAEnum, func
+from sqlalchemy import String, DateTime, Enum as SAEnum, Boolean, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -19,6 +19,11 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
     token_version: Mapped[int] = mapped_column(default=0, nullable=False, server_default="0")
     refresh_token_version: Mapped[int] = mapped_column(default=0, nullable=False, server_default="0")
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="false")
+    email_verification_token_hash: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
+    email_verification_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    password_reset_token_hash: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
+    password_reset_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(
         SAEnum("active", "inactive", "suspended", "pending_verification", name="user_status"),
         nullable=False,
