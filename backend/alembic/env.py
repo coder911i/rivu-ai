@@ -13,7 +13,7 @@ if config.config_file_name:
 database_url = os.getenv("DATABASE_URL") or config.get_main_option("sqlalchemy.url")
 if database_url.startswith("postgresql+asyncpg://"):
     database_url = database_url.replace("postgresql+asyncpg://", "postgresql://", 1)
-config.set_main_option("sqlalchemy.url", database_url)
+config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 target_metadata = Base.metadata
 
 def run_migrations_offline():
