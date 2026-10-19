@@ -10,7 +10,6 @@ from datetime import datetime, timedelta, timezone
 import structlog
 from sqlalchemy import select
 
-from app.core.config import settings
 from app.core import database
 from app.core.database import close_db, init_db
 from app.models.dataset import DataSource
@@ -77,7 +76,7 @@ async def _claim_one_job():
 async def _process_claim(claim: dict) -> None:
     from app.models.dataset import DatasetVersion
 
-    async with get_session() as db:
+    async with database._session_factory() as db:
         source_result = await db.execute(
             select(DataSource).where(DataSource.id == claim["data_source_id"])
         )
