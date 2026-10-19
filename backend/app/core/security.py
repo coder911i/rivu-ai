@@ -89,6 +89,7 @@ async def get_current_user(
         select(Membership.id).where(
             Membership.user_id == user.id,
             Membership.organization_id == active_org_id,
+            Membership.accepted_at.is_not(None),
         )
     )
     if membership_result.scalar_one_or_none() is None:
@@ -113,6 +114,7 @@ async def get_user_membership(user, db):
         select(Membership).where(
             Membership.user_id == user.id,
             Membership.organization_id == active_org_id,
+            Membership.accepted_at.is_not(None),
         )
     )
     membership = result.scalar_one_or_none()
