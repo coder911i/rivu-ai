@@ -133,7 +133,7 @@ async def run_worker() -> None:
             except Exception as exc:
                 logger.exception("worker_job_unhandled_error", job_id=claim["job_id"], error=str(exc))
                 async with database._session_factory() as db:
-                    result = await db.execute(select(Job).where(Job.id == job_uuid))
+                    result = await db.execute(select(Job).where(Job.id == UUID(claim["job_id"])))
                     job = result.scalar_one_or_none()
                     if job:
                         job.status = "failed" if job.attempts >= job.max_attempts else "queued"
