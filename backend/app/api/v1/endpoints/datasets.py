@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import polars as pl
@@ -26,7 +26,6 @@ from app.models.project import Project
 from app.models.dataset import DataSource, DatasetVersion
 from app.models.quality import Job
 from app.ingestion.parser import validate_upload, parse_to_polars, validate_file_signature
-from app.workers.processor import process_dataset_async
 
 router = APIRouter()
 logger = structlog.get_logger(__name__)
@@ -45,7 +44,6 @@ async def _get_user_org(user: User, db: AsyncSession) -> UUID:
 @router.post("/projects/{project_id}/upload", status_code=202)
 async def upload_dataset(
     project_id: UUID,
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     name: Optional[str] = Form(None),
     description: Optional[str] = Form(None),
@@ -179,17 +177,8 @@ async def upload_dataset(
     await db.refresh(data_source)
     await db.refresh(version)
 
-    # Launch background processing
-    background_tasks.add_task(
-        process_dataset_async,
-        job_id=str(job.id),
-        version_id=str(version.id),
-        data_source_id=str(data_source.id),
-        org_id=str(org_id),
-        raw_bytes=None,
-        file_format=file_format,
-    )
-
+    # The committed job is picked up by the separate database-backed worker.
+    # This survives API restarts and does not rely on in-process BackgroundTasks.
     logger.info("dataset_uploaded", dataset_id=str(data_source.id), job_id=str(job.id))
 
     return {
