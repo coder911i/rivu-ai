@@ -111,9 +111,16 @@ async def run_worker() -> None:
     logger.info("rivu_worker_started", poll_seconds=POLL_SECONDS)
     try:
         while True:
-            async with database._session_factory() as db:
-                await _recover_stale_jobs(db)
-            claim = await _claim_one_job()
+            try:
+                async with database._session_factory() as db:
+                    await _recover_stale_jobs(db)
+                claim = await _claim_one_job()
+            except Exception as exc:
+                # The API service applies Alembic migrations during deployment. If
+                # this worker starts first, retry until the schema is ready.
+                logger.warning("worker_queue_poll_failed", error=str(exc))
+                await asyncio.sleep(5)
+                continue
             if claim is None:
                 await asyncio.sleep(POLL_SECONDS)
                 continue
@@ -121,7 +128,7 @@ async def run_worker() -> None:
                 await _process_claim(claim)
             except Exception as exc:
                 logger.exception("worker_job_unhandled_error", job_id=claim["job_id"], error=str(exc))
-                async with get_session() as db:
+                async with database._session_factory() as db:
                     result = await db.execute(select(Job).where(Job.id == claim["job_id"]))
                     job = result.scalar_one_or_none()
                     if job:
