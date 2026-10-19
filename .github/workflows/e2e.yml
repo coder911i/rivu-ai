@@ -25,8 +25,20 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+      - name: Check live E2E configuration
+        id: live-e2e
+        shell: bash
+        run: |
+          if [[ -n "$E2E_BASE_URL" && -n "$E2E_API_URL" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Live E2E skipped: configure E2E_BASE_URL and E2E_API_URL secrets to run the deployed workflow."
+          fi
+      - if: steps.live-e2e.outputs.enabled == 'true'
+        run: npx playwright install --with-deps chromium
+      - if: steps.live-e2e.outputs.enabled == 'true'
+        run: npm run test:e2e
       - name: Upload Playwright report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
