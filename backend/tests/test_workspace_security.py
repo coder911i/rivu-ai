@@ -20,7 +20,7 @@ async def test_membership_query_is_bound_to_active_workspace():
         accepted_at=object(),
     )
     db = AsyncMock()
-    db.execute.return_value.scalar_one_or_none.return_value = membership
+    db.execute.return_value = SimpleNamespace(scalar_one_or_none=lambda: membership)
 
     result = await get_user_membership(user, db)
 
