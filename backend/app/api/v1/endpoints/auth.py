@@ -193,7 +193,9 @@ async def refresh_token(body: dict, db: AsyncSession = Depends(get_session)):
         .limit(1)
     )
     row = membership_result.first()
-    org_id = str(row.Organization.id) if row else None
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={"message": "No workspace membership", "type": "forbidden"})
+    org_id = str(row.Organization.id)
     return {
         "tokens": {
             "access_token": create_access_token(user.id, {"org_id": org_id} if org_id else {}),
