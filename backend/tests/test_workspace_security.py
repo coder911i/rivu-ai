@@ -56,7 +56,7 @@ async def test_viewer_cannot_use_editor_or_admin_role_gate():
         accepted_at=object(),
     )
     db = AsyncMock()
-    db.execute.return_value.scalar_one_or_none.return_value = membership
+    db.execute.return_value = SimpleNamespace(scalar_one_or_none=lambda: membership)
 
     with pytest.raises(HTTPException) as exc:
         await require_org_role(user, db, {"owner", "admin", "editor"})
