@@ -1,6 +1,9 @@
 """Authentication endpoints: signup, login, logout, me."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+import hashlib
+import secrets
+from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -8,6 +11,7 @@ import re
 import structlog
 
 from app.core.database import get_session
+from app.core.email import send_email
 from app.core.security import (
     hash_password, verify_password, create_access_token,
     create_refresh_token, decode_token, get_current_user
@@ -15,7 +19,7 @@ from app.core.security import (
 from app.core.config import settings
 from app.models.user import User
 from app.models.organization import Organization, Membership
-from app.schemas.auth import SignupRequest, LoginRequest, TokenResponse, UserResponse
+from app.schemas.auth import SignupRequest, LoginRequest, TokenResponse, UserResponse, EmailTokenRequest, PasswordResetRequest, PasswordResetCompleteRequest
 
 router = APIRouter()
 logger = structlog.get_logger(__name__)
@@ -24,6 +28,28 @@ logger = structlog.get_logger(__name__)
 def _make_org_slug(username: str) -> str:
     slug = re.sub(r"[^a-z0-9]", "-", username.lower())
     return slug.strip("-")[:100]
+
+
+
+def _hash_email_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _smtp_is_configured() -> bool:
+    return bool(settings.SMTP_HOST and settings.SMTP_FROM_EMAIL)
+
+
+async def _send_account_email(user: User, token: str, *, purpose: str) -> None:
+    frontend = settings.FRONTEND_URL.rstrip("/")
+    if purpose == "verify":
+        url = f"{frontend}/verify-email?token={quote(token)}"
+        subject = "Verify your Rivu account"
+        text_body = f"Hi {user.full_name or user.username},\n\nVerify your Rivu account using this link (expires in 24 hours):\n{url}\n"
+    else:
+        url = f"{frontend}/reset-password?token={quote(token)}"
+        subject = "Reset your Rivu password"
+        text_body = f"Hi {user.full_name or user.username},\n\nReset your Rivu password using this link (expires in 30 minutes):\n{url}\nIf you did not request this, ignore this email.\n"
+    await send_email(user.email, subject, text_body)
 
 
 @router.post("/signup", response_model=dict, status_code=status.HTTP_201_CREATED)
