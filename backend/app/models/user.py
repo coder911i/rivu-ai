@@ -17,6 +17,8 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
     full_name: Mapped[str | None] = mapped_column(String(200))
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
+    token_version: Mapped[int] = mapped_column(default=0, nullable=False, server_default="0")
+    refresh_token_version: Mapped[int] = mapped_column(default=0, nullable=False, server_default="0")
     status: Mapped[str] = mapped_column(
         SAEnum("active", "inactive", "suspended", "pending_verification", name="user_status"),
         nullable=False,
