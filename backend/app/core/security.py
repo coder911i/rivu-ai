@@ -4,7 +4,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
-from jose import JWTError, jwt
+import jwt
+from jwt import InvalidTokenError
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -16,10 +17,8 @@ from app.core.database import get_session
 
 logger = structlog.get_logger(__name__)
 
-# Password hashing. PBKDF2-SHA256 avoids the bcrypt/passlib backend compatibility
-# issue where newer bcrypt releases can reject otherwise valid short passwords.
+# PBKDF2-SHA256 avoids bcrypt/passlib backend compatibility problems.
 _pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
-
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
@@ -34,32 +33,21 @@ def verify_password(plain: str, hashed: str) -> bool:
 def create_access_token(subject: str | UUID, extra: dict[str, Any] | None = None) -> str:
     now = datetime.now(timezone.utc)
     expire = now + timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
-    payload = {
-        "sub": str(subject),
-        "iat": now,
-        "exp": expire,
-        "type": "access",
-        **(extra or {}),
-    }
+    payload = {"sub": str(subject), "iat": now, "exp": expire, "type": "access", **(extra or {})}
     return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
 
 def create_refresh_token(subject: str | UUID) -> str:
     now = datetime.now(timezone.utc)
     expire = now + timedelta(days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS)
-    payload = {
-        "sub": str(subject),
-        "iat": now,
-        "exp": expire,
-        "type": "refresh",
-    }
+    payload = {"sub": str(subject), "iat": now, "exp": expire, "type": "refresh"}
     return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
 
 def decode_token(token: str) -> dict[str, Any]:
     try:
         return jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
-    except JWTError as e:
+    except InvalidTokenError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
@@ -78,19 +66,15 @@ async def get_current_user(
     payload = decode_token(token)
     if payload.get("type") != "access":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
-
     user_id = payload.get("sub")
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
-
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
-
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     if user.status != "active":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is not active")
-
     return user
 
 
