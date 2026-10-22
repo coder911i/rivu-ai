@@ -16,19 +16,21 @@ export class ApiRequestError extends Error {
 
 async function parseError(response: Response): Promise<ApiRequestError> {
   const requestId = response.headers.get("x-request-id") || undefined;
-  let data: any = null;
-  try { data = await response.clone().json(); } catch {}
+  type ErrorPayload = { detail?: unknown; message?: unknown; type?: unknown };
+  let data: ErrorPayload | null = null;
+  try { data = await response.clone().json() as ErrorPayload; } catch {}
   const detail = data?.detail;
+  const detailObject = typeof detail === "object" && detail !== null ? detail as Record<string, unknown> : null;
   const message =
     (typeof detail === "string" && detail) ||
-    detail?.message ||
-    data?.message ||
+    (typeof detailObject?.message === "string" ? detailObject.message : undefined) ||
+    (typeof data?.message === "string" ? data.message : undefined) ||
     (response.status === 401 ? "Your session has expired. Please sign in again." :
       response.status === 403 ? "You do not have permission to perform this action." :
       response.status === 404 ? "The requested Rivu resource was not found." :
       response.status >= 500 ? "Rivu's backend returned a server error. Please retry." :
       "Rivu could not complete this request.");
-  return new ApiRequestError(String(message), response.status, detail?.type || data?.type, requestId);
+  return new ApiRequestError(String(message), response.status, (typeof detailObject?.type === "string" ? detailObject.type : undefined) || (typeof data?.type === "string" ? data.type : undefined), requestId);
 }
 
 export async function authFetch(path: string, init: RequestInit = {}) {

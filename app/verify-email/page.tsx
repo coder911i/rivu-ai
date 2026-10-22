@@ -14,8 +14,10 @@ export default function VerifyEmailPage() {
 
   useEffect(() => {
     const value = new URLSearchParams(window.location.search).get("token") || "";
-    setToken(value);
-    if (!value) setMessage("Verify your email to activate your Rivu account.");
+    const frame = window.requestAnimationFrame(() => {
+      setToken(value);
+      if (!value) setMessage("Verify your email to activate your Rivu account.");
+    });
     if (value) {
       fetch(API + "/auth/verify-email", {
         method: "POST",
@@ -30,6 +32,7 @@ export default function VerifyEmailPage() {
         setMessage("");
       });
     }
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   async function resend(e: FormEvent) {

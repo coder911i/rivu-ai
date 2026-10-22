@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect,useRef,useState, type ReactNode } from "react";
+import { use, useCallback, useEffect, useState, type ReactNode } from "react";
 import { ArrowLeft, BarChart3, Bell, BrainCircuit, CheckCircle2, ChevronDown, Database, Download, FileDown, FileJson, FileSpreadsheet, Grid2X2, Loader2, RefreshCw, Search, ShieldCheck, SlidersHorizontal, Sparkles, Table2, WandSparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import styles from "./dataset.module.css";
@@ -18,25 +18,28 @@ type RefineryPlan={id?:string;summary?:string;dataset_summary?:string;operations
 type PreviewItem={column?:string;op?:string;before?:unknown[];after?:unknown[]};
 type PreviewResponse={previews?:PreviewItem[]};
 type ArtifactMap=Record<string,{filename:string;download_url:string;size_bytes?:number}>;
-type IntelligenceReport={ai?:{headline:string;summary:string;executive_summary?:string;data_story?:string;key_findings?:string[];risk_analysis?:string[];recommended_actions?:string[];strengths:string[];risks:string[];actions:string[];data_readiness:number;confidence_note?:string};quality:{overall:number;completeness:number;validity:number;consistency:number;uniqueness:number;integrity:number};issues:any[];sample_rows:Record<string,unknown>[];artifacts?:ArtifactMap;refinement?:{applied:number;failed:number;quality_delta:number;quality_before?:number;quality_after?:number}|null};
+type IntelligenceReport={ai?:{headline:string;summary:string;executive_summary?:string;data_story?:string;key_findings?:string[];risk_analysis?:string[];recommended_actions?:string[];strengths:string[];risks:string[];actions:string[];data_readiness:number;confidence_note?:string};quality:{overall:number;completeness:number;validity:number;consistency:number;uniqueness:number;integrity:number};issues:{severity?:string; title?:string; [key:string]:unknown}[];sample_rows:Record<string,unknown>[];artifacts?:ArtifactMap;refinement?:{applied:number;failed:number;quality_delta:number;quality_before?:number;quality_after?:number}|null};
 type TableResponse={columns:string[];rows:Record<string,unknown>[];total:number;offset:number;limit:number};
 
-function apiErrorMessage(data: any, fallback: string): string {
-  const detail = data?.detail;
+type ApiErrorPayload = { detail?: string | { message?: unknown; error?: unknown; [key: string]: unknown }; message?: unknown };
+function apiErrorMessage(data: unknown, fallback: string): string {
+  const payload = data as ApiErrorPayload | null;
+  const detail = payload?.detail;
   if (typeof detail === "string" && detail.trim()) return detail;
   if (detail && typeof detail === "object") {
     if (typeof detail.message === "string" && detail.message.trim()) return detail.message;
     if (typeof detail.error === "string" && detail.error.trim()) return detail.error;
     try { return JSON.stringify(detail); } catch { return fallback; }
   }
-  if (typeof data?.message === "string" && data.message.trim()) return data.message;
+  if (typeof payload?.message === "string" && payload.message.trim()) return payload.message;
   return fallback;
 }
 
 export default function DatasetPage({params}:{params:Promise<{id:string}>}){
  const router=useRouter();
- const [datasetId,setDatasetId]=useState("");
+ const datasetId = use(params).id;
  const [profile,setProfile]=useState<DatasetProfile|null>(null),[quality,setQuality]=useState<QualityReport|null>(null),[plan,setPlan]=useState<RefineryPlan|null>(null),[busy,setBusy]=useState(false),[preview,setPreview]=useState<PreviewResponse|null>(null),[running,setRunning]=useState(false),[error,setError]=useState(""),[artifacts,setArtifacts]=useState<ArtifactMap|null>(null),[reportData,setReportData]=useState<IntelligenceReport|null>(null),[table,setTable]=useState<TableResponse|null>(null),[tableSearch,setTableSearch]=useState(""),[tablePage,setTablePage]=useState(0),[sortColumn,setSortColumn]=useState(""),[sortDesc,setSortDesc]=useState(false),[tableLoading,setTableLoading]=useState(false);
+ const loadReport = useCallback(async () => { if(!datasetId)return; try { const r=await authFetch("/reports/"+datasetId+"/dashboard",{headers:authHeaders()}); const d=await r.json(); if(r.ok){setReportData(d); if(d.artifacts)setArtifacts(d.artifacts)} } catch {} }, [datasetId]);
   const load = useCallback(async () => {
   if (!datasetId) return false;
   try{
@@ -56,15 +59,9 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
     else throw new Error(await q.text().catch(()=> "Quality analysis unavailable")); 
     return true;
   }catch(e){setError(e instanceof Error?e.message:"Unable to load dataset intelligence.");return false}
- }, [datasetId, router]);
- async function loadReport(){if(!datasetId)return;try{const r=await authFetch("/reports/"+datasetId+"/dashboard",{headers:authHeaders()});const d=await r.json();if(r.ok){setReportData(d);if(d.artifacts)setArtifacts(d.artifacts)}}catch{}}
+ }, [datasetId, router, loadReport]);
  async function loadTable(){if(!datasetId)return;setTableLoading(true);try{const qs=new URLSearchParams({offset:String(tablePage*50),limit:"50",search:tableSearch,sort:sortColumn,desc:String(sortDesc)});const r=await authFetch("/datasets/"+datasetId+"/preview?"+qs.toString(),{headers:authHeaders()});const d=await r.json().catch(()=>({}));if(r.ok)setTable(d);else setError(apiErrorMessage(d,"Dataset preview unavailable"));}catch(e){setError(e instanceof Error?e.message:"Dataset preview unavailable")}finally{setTableLoading(false)}}
- useEffect(()=>{if(profile)loadTable()},[profile,datasetId,tablePage,tableSearch,sortColumn,sortDesc]);
- useEffect(()=>{
-  let cancelled=false;
-  params.then(({id})=>{ if(!cancelled) setDatasetId(id); });
-  return()=>{cancelled=true};
- }, [params]);
+ useEffect(()=>{if(profile) queueMicrotask(() => { void loadTable(); })},[profile,datasetId,tablePage,tableSearch,sortColumn,sortDesc]);
  useEffect(()=>{
   let cancelled=false;
   const poll=async()=>{
@@ -259,7 +256,7 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
        <div className={styles.chartCard}>
         <div className={styles.chartTitle}><span>ISSUE MIX</span><b>{reportData?.issues?.length||0} detected</b></div>
         <div className={styles.issueBars}>
-         {["critical","high","medium","low"].map(level=>{const n=reportData?.issues?.filter((x:any)=>String(x.severity||"").toLowerCase()===level).length||0;const total=Math.max(1,reportData?.issues?.length||0);return <div key={level}><span>{level}</span><i><em style={{width:(n/total*100)+"%"}}/></i><b>{n}</b></div>})}
+         {["critical","high","medium","low"].map(level=>{const n=reportData?.issues?.filter((x)=>String(x.severity||"").toLowerCase()===level).length||0;const total=Math.max(1,reportData?.issues?.length||0);return <div key={level}><span>{level}</span><i><em style={{width:(n/total*100)+"%"}}/></i><b>{n}</b></div>})}
         </div>
         <div className={styles.analyticsNote}>Measured from the current refined version. No synthetic metrics.</div>
        </div>

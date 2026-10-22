@@ -14,7 +14,10 @@ export default function ResetPasswordPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    setToken(new URLSearchParams(window.location.search).get("token") || "");
+    const frame = window.requestAnimationFrame(() => {
+      setToken(new URLSearchParams(window.location.search).get("token") || "");
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   async function submit(e: FormEvent) {
