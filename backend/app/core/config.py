@@ -64,7 +64,7 @@ class Settings(BaseSettings):
     @field_validator("DEFAULT_AI_PROVIDER", mode="before")
     @classmethod
     def require_supported_ai_provider(cls, value):
-        provider = str(value or "groq").strip().lower()
+        provider = str(value).strip().lower() if value is not None else "groq"
         if provider != "groq":
             raise ValueError(
                 f"Unsupported DEFAULT_AI_PROVIDER={provider!r}. "
