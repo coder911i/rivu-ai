@@ -1,6 +1,9 @@
 """Ensure every registered SQLAlchemy model table is represented in db/schema.sql."""
 from pathlib import Path
 import re
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.core.database import Base
 import app.models  # noqa: F401
