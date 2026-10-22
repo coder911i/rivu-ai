@@ -61,6 +61,17 @@ class Settings(BaseSettings):
     MAX_AI_SAMPLE_ROWS: int = 1_000
     JOB_WORKER_CONCURRENCY: int = 4
 
+    @field_validator("DEFAULT_AI_PROVIDER", mode="before")
+    @classmethod
+    def require_supported_ai_provider(cls, value):
+        provider = str(value or "groq").strip().lower()
+        if provider != "groq":
+            raise ValueError(
+                f"Unsupported DEFAULT_AI_PROVIDER={provider!r}. "
+                "Rivu currently supports only 'groq'; OpenAI and Gemini adapters are not implemented."
+            )
+        return provider
+
     @field_validator("GROQ_MODEL", mode="before")
     @classmethod
     def normalize_groq_model(cls, value):

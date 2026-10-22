@@ -186,7 +186,7 @@ Polars · pandas/openpyxl · PostgreSQL · S3-compatible object storage
 
 **AI**
 
-Provider abstraction · Groq-compatible AI provider
+Groq is the only supported provider today. `DEFAULT_AI_PROVIDER` values other than `groq` are rejected during settings initialization; OpenAI and Gemini adapters are not implemented yet.
 
 **Quality**
 
@@ -230,7 +230,7 @@ Configure the environment from:
 backend/.env.example
 ```
 
-Production secrets must be provided through the deployment environment.
+Production secrets must be provided through the deployment environment. Set `DEFAULT_AI_PROVIDER=groq` and configure `GROQ_API_KEY` securely. OpenAI and Gemini are intentionally rejected until their adapters and tests exist.
 
 ---
 

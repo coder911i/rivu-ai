@@ -1,4 +1,5 @@
 import json
+import codecs
 
 import pytest
 
@@ -43,3 +44,45 @@ def test_parquet_signature_rejects_invalid_bytes():
 def test_xlsx_signature_rejects_invalid_bytes():
     with pytest.raises(Exception):
         validate_file_signature(b"NOTXLSX", "xlsx")
+
+
+def test_csv_prefers_valid_utf8_for_accented_text():
+    raw = "name,city\\nZoë,Montréal\\nFrançois,Québec\\n".encode("utf-8")
+    df, meta = parse_to_polars(raw, "csv", "utf8.csv")
+    assert meta["encoding"] == "utf-8"
+    assert df["name"].to_list() == ["Zoë", "François"]
+    assert df["city"].to_list() == ["Montréal", "Québec"]
+
+
+def test_csv_falls_back_to_legacy_windows_1252():
+    raw = "name,city\\nAndré,Montréal\\n".encode("cp1252")
+    df, meta = parse_to_polars(raw, "csv", "legacy.csv")
+    assert meta["encoding"].lower().replace("_", "-") in {"cp1252", "windows-1252"}
+    assert df["name"].to_list() == ["André"]
+    assert df["city"].to_list() == ["Montréal"]
+
+
+@pytest.mark.parametrize(
+    ("payload", "file_format"),
+    [
+        (b"PK\\x03\\x04" + b"\\x00" * 8, "xlsx"),
+        (b"\\xd0\\xcf\\x11\\xe0\\xa1\\xb1\\x1a\\xe1" + b"\\x00" * 8, "xls"),
+    ],
+)
+def test_excel_real_binary_signatures_are_accepted(payload, file_format):
+    validate_file_signature(payload, file_format)
+
+
+@pytest.mark.parametrize(
+    ("payload", "file_format"),
+    [
+        (b"PK\\x03\\x05" + b"\\x00" * 8, "xlsx"),
+        (b"\\xd0\\xcf\\x11\\xe0\\xa1\\xb1\\x1a\\xe0" + b"\\x00" * 8, "xls"),
+        (b"not-an-office-file", "xlsx"),
+        (b"not-an-office-file", "xls"),
+    ],
+)
+def test_excel_invalid_binary_signatures_are_rejected(payload, file_format):
+    from app.core.exceptions import ValidationError
+    with pytest.raises(ValidationError):
+        validate_file_signature(payload, file_format)

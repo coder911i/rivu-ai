@@ -32,16 +32,33 @@ def detect_file_format(filename: str, content_type: str) -> str:
 
 
 def detect_encoding(data: bytes) -> str:
-    """Prefer UTF-8 when valid; fall back to statistical detection for legacy encodings."""
+    """Prefer strict UTF-8; otherwise use chardet, with Windows-1252 as a documented fallback.
+
+    UTF-8 is checked against the complete file so an invalid byte after the sample
+    window cannot silently turn into a replacement character. Windows-1252 is a
+    practical last resort for legacy exports from older Windows/Excel workflows.
+    """
     if data.startswith(b"\xef\xbb\xbf"):
         return "utf-8-sig"
     try:
-        data[:65536].decode("utf-8")
+        data.decode("utf-8", errors="strict")
         return "utf-8"
     except UnicodeDecodeError:
-        result = chardet.detect(data[:65536])
-        encoding = result.get("encoding") or "utf-8"
-        return "utf-8" if encoding.lower() == "ascii" else encoding
+        detected = chardet.detect(data[:65536]).get("encoding")
+        if detected:
+            try:
+                data.decode(detected, errors="strict")
+                return detected
+            except (LookupError, UnicodeDecodeError):
+                pass
+        try:
+            data.decode("cp1252", errors="strict")
+            return "cp1252"
+        except UnicodeDecodeError:
+            # Keep the failure explicit rather than silently corrupting text.
+            raise ValidationError(
+                "CSV encoding could not be detected. Save the file as UTF-8 or Windows-1252."
+            )
 
 
 def parse_to_polars(data: bytes, file_format: str, filename: str) -> Tuple[pl.DataFrame, dict]:
@@ -53,7 +70,7 @@ def parse_to_polars(data: bytes, file_format: str, filename: str) -> Tuple[pl.Da
         encoding = detect_encoding(data)
         meta["encoding"] = encoding
         try:
-            text = data.decode(encoding, errors="replace")
+            text = data.decode(encoding, errors="strict")
             delimiter = _detect_csv_delimiter(text[:4096])
             meta["delimiter"] = delimiter
             df = pl.read_csv(
@@ -123,10 +140,17 @@ def validate_upload(filename: str, size: int, content_type: str) -> str:
 
 
 def validate_file_signature(data: bytes, file_format: str) -> None:
-    """Validate magic-byte signatures for binary formats."""
-    if file_format == "parquet" and not data.startswith(b"PAR1"):
-        raise ValidationError("Invalid Parquet file signature")
-    if file_format == "xlsx" and not data.startswith(b"PK\x03\x04"):
-        raise ValidationError("Invalid XLSX file signature")
-    if file_format == "xls" and not data.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"):
-        raise ValidationError("Invalid XLS file signature")
+    """Validate the documented binary container signatures before parsing."""
+    signatures = {
+        "parquet": ((b"PAR1",), "Parquet"),
+        # Office Open XML workbooks are ZIP packages; a non-empty XLSX package
+        # starts with a ZIP local-file header.
+        "xlsx": ((b"PK\x03\x04",), "XLSX"),
+        # Legacy .xls workbooks use the OLE Compound File Binary Format header.
+        "xls": ((b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1",), "XLS"),
+    }
+    if file_format not in signatures:
+        return
+    accepted, label = signatures[file_format]
+    if not any(data.startswith(signature) for signature in accepted):
+        raise ValidationError(f"Invalid {label} file signature")
