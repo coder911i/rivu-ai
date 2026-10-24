@@ -54,7 +54,8 @@ export default function Home() {
             <button onClick={() => router.push("/our-services")}>Our Services</button>
             <button onClick={() => go("engine")}>Data Engine</button>
             <button onClick={() => go("quality")}>Quality</button>
-            <button onClick={() => go("about")}>About Rivu</button>\n            <button onClick={() => go("solution-lab")}>Solution Lab</button>
+            <button onClick={() => go("about")}>About Rivu</button>
+            <button onClick={() => go("solution-lab")}>Solution Lab</button>
           </div>
           <div className="nav-actions">
             <button className="nav-quote" onClick={() => router.push("/login")}>Get Started <span>→</span></button>
