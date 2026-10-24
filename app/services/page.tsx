@@ -17,7 +17,10 @@ type ApiError = { detail?: string | { message?: string; cause?: string; type?: s
 
 function messageFrom(data: ApiError, fallback: string) {
   if (typeof data?.detail === "string") return data.detail;
-  if (data?.detail && typeof data.detail === "object" && typeof data.detail.message === "string") {\n    const cause = typeof data.detail.cause === "string" ? data.detail.cause : "";\n    return cause ? data.detail.message + " Details: " + cause : data.detail.message;\n  }
+  if (data?.detail && typeof data.detail === "object" && typeof data.detail.message === "string") {
+    const cause = typeof data.detail.cause === "string" ? data.detail.cause : "";
+    return cause ? data.detail.message + " Details: " + cause : data.detail.message;
+  }
   return data?.message || fallback;
 }
 async function jsonOrEmpty(response: Response): Promise<Record<string, unknown>> {
