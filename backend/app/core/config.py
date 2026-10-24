@@ -68,8 +68,13 @@ class Settings(BaseSettings):
             raise ValueError("DEFAULT_AI_PROVIDER must be a string")
         provider = value.strip().lower()
         if provider != "groq":
+            if provider in {"openai", "gemini"}:
+                raise ValueError(
+                    f"AI provider '{provider}' is not supported; only 'groq' is supported. "
+                    "Rivu currently supports only 'groq'; OpenAI and Gemini adapters are not implemented."
+                )
             raise ValueError(
-                f"Unsupported DEFAULT_AI_PROVIDER={provider!r}. "
+                f"Unsupported AI provider '{provider}'; only 'groq' is supported. "
                 "Rivu currently supports only 'groq'; OpenAI and Gemini adapters are not implemented."
             )
         return provider

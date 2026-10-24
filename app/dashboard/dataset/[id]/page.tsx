@@ -330,21 +330,11 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
           {quality.issues.slice(0,5).map((i)=><p key={i.id}><span>{i.severity}</span>{i.title}</p>)}
          </div>
         </div>
-      ) : (
-        <>
-          <div className={styles.hero}>
-            <div>
-              <div className={styles.kicker}>DATASET / {profile.dataset.status?.toUpperCase()}</div>
-              <h1>{profile.dataset.name}</h1>
-              <p>{profile.profile.row_count.toLocaleString()} rows · {profile.profile.column_count} columns · v{profile.version.number}</p>
-            </div>
-            <div className={styles.actions}>
-              <button onClick={report}><Download size={15} /> Report</button>
-              <button className={styles.ai} onClick={ai} disabled={busy}>
-                {busy ? <Loader2 className={styles.spin} /> : <WandSparkles size={15} />} {busy ? "Analyzing..." : "AI Refinery Plan"}
-              </button>
-            </div>
-          </div>
+       ) : (
+        <p className={styles.muted}>Quality analysis is still running.</p>
+       )}
+      </div>
+     </section>
 
      {plan&&(
       <section id="transformations" className={styles.plan}>

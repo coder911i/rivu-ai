@@ -94,3 +94,18 @@ export async function requestBlob(path: string, init: RequestInit = {}): Promise
   if (!response.ok) throw await parseError(response);
   return response.blob();
 }
+
+/** Convenience helper for callers that do their own fetch and need a plain error string. */
+export function extractErrorMessage(data: unknown, fallback = "An error occurred"): string {
+  if (!data || typeof data !== "object") return fallback;
+  const d = data as Record<string, unknown>;
+  const detail = d.detail;
+  if (typeof detail === "string" && detail.trim()) return detail;
+  if (detail && typeof detail === "object") {
+    const o = detail as Record<string, unknown>;
+    if (typeof o.message === "string" && o.message.trim()) return o.message;
+  }
+  if (typeof d.message === "string" && d.message.trim()) return d.message;
+  return fallback;
+}
+
