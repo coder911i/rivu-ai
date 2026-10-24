@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      E2E_BASE_URL: ${{ secrets.E2E_BASE_URL || github.event.deployment_status.target_url }}
+      E2E_BASE_URL: ${{ secrets.E2E_BASE_URL || github.event.deployment_status.target_url || 'https://rivu-ai-murex.vercel.app' }}
       E2E_API_URL: ${{ secrets.E2E_API_URL }}
     steps:
       - uses: actions/checkout@v4
