@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowRight, Database, FileCheck2, Menu, Sparkles, Workflow, X, Zap } from "lucide-react";
+import { ArrowRight, Database, FileCheck2, Menu, Sparkles, Workflow, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 const services = [
