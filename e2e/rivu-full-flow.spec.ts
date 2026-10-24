@@ -3,6 +3,7 @@ import { test, expect } from "@playwright/test";
 const api = () => process.env.E2E_API_URL || "http://127.0.0.1:8000/api/v1";
 
 test("Rivu full data-refinery flow", async ({ page, request }) => {
+  test.skip(!process.env.E2E_API_URL, "Configure E2E_API_URL to run backend integration coverage.");
   const stamp = Date.now();
   const email = `e2e+${stamp}@rivu.test`;
   const password = "RivuE2E@2026!";
