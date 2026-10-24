@@ -7,6 +7,6 @@ test("homepage and services pages render and navigation works", async ({ page })
   await expect(page.getByText("SOLUTION EXPLORER")).toBeAttached();
 
   await page.getByRole("button", { name: "Our Services" }).click();
-  await expect(page).toHaveURL(/\\/our-services$/);
+  await expect(page).toHaveURL(/\/our-services$/);
   await expect(page.getByRole("heading", { name: /AI & data solutions/i })).toBeVisible();
 });
