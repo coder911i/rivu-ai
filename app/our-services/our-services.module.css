@@ -29,3 +29,58 @@
 @media(max-width:800px){.caseCard{grid-template-columns:1fr}.caseVisual{min-height:340px}.caseCopy{padding:26px}.caseNote{align-items:flex-start;flex-wrap:wrap}.caseNote p{flex-basis:calc(100% - 45px)}.caseNote>a{margin-left:45px}}
 @media(max-width:420px){.caseVisual{min-height:300px}.caseMetric{left:12px;top:22px}.caseMini{right:10px;bottom:42px}.caseTag{left:12px}.caseCube{transform:scale(.82) rotateX(-28deg) rotateY(-38deg)}.caseNote>a{margin-left:0}}
 @media(prefers-reduced-motion:reduce){.caseCube{animation:none}}
+
+
+/* Premium 3D Rivu engine scene */
+.visual{perspective:1100px;isolation:isolate;background:radial-gradient(ellipse at 50% 48%,#e4d6ff 0%,#f0e8ff 40%,#fbfaff 78%);box-shadow:inset 0 0 0 1px #ffffffb5,inset 0 -28px 65px #cdb9ef24}
+.visual:after{content:"";position:absolute;inset:0;z-index:0;border-radius:inherit;pointer-events:none;background:linear-gradient(125deg,#ffffff80,transparent 34%,transparent 72%,#ffffff9c)}
+.visualGrid{position:absolute;inset:0;z-index:0;opacity:.43;background-image:radial-gradient(#a78bce 1.1px,transparent 1.1px);background-size:22px 22px;mask-image:radial-gradient(ellipse at center,#000 10%,transparent 78%)}
+.glow{width:320px;height:320px;z-index:0;opacity:.66;filter:blur(72px);background:radial-gradient(circle,#ad8aef,#c6aff5 42%,transparent 72%);animation:engineGlow 7s ease-in-out infinite}
+.dataOrbit,.dataOrbitAlt{position:absolute;z-index:1;left:50%;top:50%;border:1px solid #a88cdb7a;border-radius:50%;pointer-events:none;transform-style:preserve-3d}
+.dataOrbit{width:290px;height:102px;transform:translate(-50%,-50%) rotateX(62deg) rotateZ(-24deg);box-shadow:0 0 0 17px #b79ae80b,0 0 0 37px #b79ae80a;animation:orbitDrift 14s linear infinite}
+.dataOrbitAlt{width:255px;height:148px;transform:translate(-50%,-50%) rotateX(62deg) rotateZ(35deg);border-color:#c1a9e6a1;animation:orbitDriftReverse 18s linear infinite}
+.dataBeam{position:absolute;z-index:1;left:17%;top:50%;width:66%;height:1px;background:linear-gradient(90deg,transparent,#a889dc85,#bda3eb, #a889dc85,transparent);transform:rotate(-16deg);box-shadow:0 0 14px #a889dc75}
+.source,.output{z-index:4;padding:17px 18px 15px;min-width:176px;min-height:104px;border:1px solid #e2d6f4;border-radius:17px;background:linear-gradient(145deg,#fff 0%,#ffffffef 70%,#f9f5ff 100%);box-shadow:0 20px 45px #34204d12,0 3px 8px #34204d06;backdrop-filter:blur(16px);transform-style:preserve-3d;transition:transform .35s,box-shadow .35s}
+.source{left:5.5%;top:12%;animation:cardHover 6s ease-in-out infinite}
+.output{right:5%;bottom:12%;animation:cardHover 6s ease-in-out -2.5s infinite}
+.source:hover{transform:translateZ(18px) rotateY(-5deg) rotateX(3deg);box-shadow:0 28px 55px #34204d20}
+.output:hover{transform:translateZ(18px) rotateY(5deg) rotateX(-3deg);box-shadow:0 28px 55px #34204d20}
+.source small,.output small{font-size:9px;letter-spacing:.15em;color:#8660ce;font-weight:700}
+.source b,.output b{font:600 13px 'Space Grotesk',Inter,sans-serif;letter-spacing:-.02em;margin-top:1px}
+.source span,.output span{font-size:10px;color:#70657e}
+.fileIcon{position:absolute;right:15px;top:14px;width:23px;height:27px;border:1.5px solid #bca5e7;border-radius:5px;background:linear-gradient(145deg,#fff,#f1e8ff);display:flex;flex-direction:column;justify-content:center;gap:3px;padding:4px}
+.fileIcon i{height:2px;background:#a789d7;border-radius:3px;width:100%}
+.sourceRows{display:flex;gap:3px;margin-top:4px}
+.sourceRows i{height:3px;flex:1;border-radius:4px;background:#d8c7f0}
+.sourceRows i:nth-child(2){background:#9b79d4}.sourceRows i:nth-child(4){background:#b6a0e5}
+.engineHalo{position:absolute;z-index:1;width:202px;height:202px;left:50%;top:50%;border:1px solid #b59be77d;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 0 12px #b49ae711,0 0 0 26px #b49ae70b,0 0 55px #a78add66;animation:haloPulse 4.5s ease-in-out infinite}
+.engine{position:relative;z-index:3;width:172px;height:172px;flex-shrink:0;border-radius:50%;background:radial-gradient(circle at 32% 20%,#403052 0%,#2b1d3a 42%,#171020 100%);border:1px solid #ffffff35;color:#fff;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;box-shadow:inset 0 2px 2px #ffffff2b,inset 0 -18px 32px #08050d70,0 28px 48px #38234e3c,0 0 0 7px #ffffff59;transform:translateZ(34px);animation:engineLevitate 5s ease-in-out infinite}
+.engine:before{content:"";position:absolute;inset:9px;border:1px solid #bba0e850;border-radius:50%;box-shadow:inset 0 0 22px #c3a0f018}
+.engine:after{content:"";position:absolute;inset:-7px;border-radius:50%;border:1px solid #b99ce750;transform:rotateX(68deg) rotateZ(-12deg);pointer-events:none}
+.engineCore{position:relative;width:43px;height:39px;display:grid;place-items:center;color:white;filter:drop-shadow(0 0 8px #cbb0ff88)}
+.engineCore svg{position:relative;z-index:2;stroke-width:2.5}
+.engineCore i{position:absolute;width:9px;height:9px;border:2px solid #fff;border-radius:3px;background:#362347;z-index:3}
+.engineCore i:nth-of-type(1){left:1px;top:2px}.engineCore i:nth-of-type(2){right:0;bottom:2px}.engineCore i:nth-of-type(3){left:17px;top:15px;width:7px;height:7px;background:#c4a4ff;border-color:#e7d8ff}
+.engine b{font:600 13px 'Space Grotesk',Inter,sans-serif;letter-spacing:.14em;text-shadow:0 2px 12px #cdb5ff28}
+.engine small{font-size:7px;letter-spacing:.04em;color:#d8c7ff}
+.engineStatus{display:flex;align-items:center;gap:5px;font:600 6px 'Space Grotesk';letter-spacing:.12em;color:#b9a3d7;position:absolute;bottom:18px}
+.engineStatus i{width:4px;height:4px;border-radius:50%;background:#c5ff7a;box-shadow:0 0 8px #c5ff7a}
+.outputCheck{position:absolute;right:14px;top:13px;color:#7f59c7}
+.outputRows{display:flex;gap:4px;margin-top:4px}
+.outputRows i{height:4px;flex:1;border-radius:4px;background:#e6dcf6}
+.outputRows i:first-child{background:#9873d5}.outputRows i:nth-child(2){background:#c5b1e9}
+.visualLabel{z-index:3;left:4%;bottom:5%;font-size:9px;letter-spacing:.18em;color:#817194}
+.visualIndex{position:absolute;z-index:3;right:5%;top:6%;display:flex;align-items:center;gap:9px;font:600 8px 'Space Grotesk';letter-spacing:.14em;color:#8c7a9f}
+.visualIndex i{width:24px;height:1px;background:#bba4df}
+.visualParticle,.visualParticleAlt{position:absolute;z-index:2;width:7px;height:7px;border-radius:50%;background:#fff;border:1px solid #b89ce9;box-shadow:0 0 15px #a98adf;animation:particleDrift 5s ease-in-out infinite}
+.visualParticle{left:31%;top:31%}.visualParticleAlt{right:27%;bottom:28%;width:5px;height:5px;animation-delay:-2.2s}
+@keyframes engineGlow{0%,100%{transform:scale(.9);opacity:.5}50%{transform:scale(1.12);opacity:.78}}
+@keyframes orbitDrift{0%{transform:translate(-50%,-50%) rotateX(62deg) rotateZ(-24deg)}100%{transform:translate(-50%,-50%) rotateX(62deg) rotateZ(336deg)}}
+@keyframes orbitDriftReverse{0%{transform:translate(-50%,-50%) rotateX(62deg) rotateZ(35deg)}100%{transform:translate(-50%,-50%) rotateX(62deg) rotateZ(-325deg)}}
+@keyframes haloPulse{0%,100%{box-shadow:0 0 0 12px #b49ae711,0 0 0 26px #b49ae70b,0 0 45px #a78add45}50%{box-shadow:0 0 0 17px #b49ae711,0 0 0 34px #b49ae70b,0 0 65px #a78add75}}
+@keyframes engineLevitate{0%,100%{transform:translateY(0) translateZ(34px)}50%{transform:translateY(-7px) translateZ(34px)}}
+@keyframes cardHover{0%,100%{translate:0 0}50%{translate:0 -5px}}
+@keyframes particleDrift{0%,100%{translate:0 0;opacity:.5}50%{translate:8px -13px;opacity:1}}
+@media(max-width:900px){.visual{height:390px}.source{left:3%;top:10%}.output{right:3%;bottom:9%}.engine{width:158px;height:158px}.engineHalo{width:184px;height:184px}.dataOrbit{width:250px}.dataOrbitAlt{width:230px}}
+@media(max-width:520px){.visual{height:325px;border-radius:20px}.source,.output{min-width:0;padding:11px 12px;border-radius:12px;max-width:150px}.source{left:9px;top:13%}.output{right:8px;bottom:12%}.source small,.output small{font-size:7px}.source b,.output b{font-size:10px}.source span,.output span{font-size:8px}.fileIcon{width:17px;height:21px;right:9px;top:9px;padding:3px}.engine{width:130px;height:130px;gap:7px}.engineCore{transform:scale(.85)}.engine b{font-size:10px}.engine small{font-size:6px}.engineStatus{bottom:13px;font-size:5px}.engineHalo{width:150px;height:150px}.dataOrbit{width:190px;height:70px}.dataOrbitAlt{width:175px;height:95px}.visualIndex{font-size:6px;top:5%;right:4%;gap:5px}.visualIndex i{width:13px}.visualLabel{font-size:7px;bottom:5%;left:4%}.sourceRows{margin-top:1px}.outputRows{margin-top:1px}}
+@media(prefers-reduced-motion:reduce){.visual .glow,.dataOrbit,.dataOrbitAlt,.engineHalo,.engine,.source,.output,.visualParticle,.visualParticleAlt{animation:none!important}}
