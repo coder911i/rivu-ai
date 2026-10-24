@@ -24,7 +24,6 @@ const [industry,setIndustry]=useState("E-commerce & Retail"),[service,setService
 const [form,setForm]=useState({name:"",email:"",company:"",problem:"",volume:"",contact:"Phone"});
 const update=(k:keyof typeof form,v:string)=>setForm(old=>({...old,[k]:v}));
 function submit(e:React.FormEvent<HTMLFormElement>){e.preventDefault();setError("");if(!form.name.trim()||!form.email.trim()||!form.company.trim()||!form.problem.trim()){setError("Please complete all required fields.");return;}
-const subject=encodeURIComponent("Rivu AI consultation — "+form.company);
 const body=encodeURIComponent("Consultation request\nName: "+form.name+"\nEmail: "+form.email+"\nCompany: "+form.company+"\nIndustry: "+industry+"\nService: "+service+"\nData volume: "+(form.volume||"Not specified")+"\nPreferred contact: "+form.contact+"\nChallenge: "+form.problem);
 window.open("https://wa.me/919389224210?text="+body, "_blank", "noopener,noreferrer");}
 return <main className={styles.page}>
