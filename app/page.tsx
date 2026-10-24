@@ -51,6 +51,7 @@ export default function Home() {
           <Logo />
           <div className={`nav-links ${menu ? "mobile-open" : ""}`}>
             <button onClick={() => go("solutions")}>Solutions</button>
+            <button onClick={() => router.push("/services")}>Our Services</button>
             <button onClick={() => go("engine")}>Data Engine</button>
             <button onClick={() => go("quality")}>Quality</button>
             <button onClick={() => go("about")}>About Rivu</button>
