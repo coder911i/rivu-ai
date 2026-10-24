@@ -2,6 +2,8 @@
 
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSyncExternalStore } from "react";
+import Link from "next/link";
 import {
   ArrowLeft, ArrowRight, CheckCircle2, ChevronDown, Database, Download,
   FileJson, FileSpreadsheet, FileUp, LoaderCircle, LockKeyhole, RefreshCw,
@@ -28,8 +30,8 @@ function messageFrom(data: ApiError, fallback: string) {
   if (data?.detail && typeof data.detail === "object" && typeof data.detail.message === "string") return data.detail.message;
   return data?.message || fallback;
 }
-async function jsonOrEmpty(response: Response) {
-  return await response.json().catch(() => ({})) as Record<string, any>;
+async function jsonOrEmpty(response: Response): Promise<Record<string, unknown>> {
+  return await response.json().catch(() => ({})) as Record<string, unknown>;
 }
 
 export default function ServicesPage() {
@@ -40,17 +42,16 @@ export default function ServicesPage() {
   const [datasetId, setDatasetId] = useState("");
   const [profile, setProfile] = useState<DatasetProfile | null>(null);
   const [plan, setPlan] = useState<Plan | null>(null);
-  const [preview, setPreview] = useState<Record<string, any> | null>(null);
+  const [preview, setPreview] = useState<Record<string, unknown> | null>(null);
   const [artifacts, setArtifacts] = useState<ArtifactMap | null>(null);
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState<"idle" | "upload" | "profile" | "plan" | "preview" | "execute" | "done">("idle");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [authReady, setAuthReady] = useState(false);
+  const authReady = useSyncExternalStore(() => () => {}, () => true, () => false);
   const [signedIn, setSignedIn] = useState(false);
 
   useEffect(() => {
-    setAuthReady(true);
     const token = localStorage.getItem("rivu_access_token");
     setSignedIn(Boolean(token));
     if (!token) {
@@ -212,7 +213,7 @@ export default function ServicesPage() {
       <CursorField />
       <header className={styles.nav}>
         <BrandLogo href="/" className={styles.logo} />
-        <nav><a href="/#solutions">Solutions</a><a className={styles.activeLink} href="/services">Our Services</a><a href="/dashboard">Workspace</a></nav>
+        <nav><Link href="/#solutions">Solutions</Link><Link className={styles.activeLink} href="/services">Our Services</Link><Link href="/dashboard">Workspace</Link></nav>
         <button className={styles.back} onClick={() => router.push("/dashboard")}><ArrowLeft size={15}/> Workspace</button>
       </header>
 
@@ -280,7 +281,7 @@ export default function ServicesPage() {
       </section>
 
       <section className={styles.securityNote}><ShieldCheck size={18}/><div><b>Built around controlled changes</b><p>Server-side authentication and organization role checks remain authoritative. Uploads are validated by the backend. AI creates a plan only; deterministic allowlisted operations run after explicit approval, and source data is kept as an immutable version.</p></div></section>
-      <footer className={styles.footer}><BrandLogo href="/" className={styles.logo}/><span>Rivu by WaterTing · Data Transformation Services</span><a href="/dashboard">Open workspace <ArrowRight size={13}/></a></footer>
+      <footer className={styles.footer}><BrandLogo href="/" className={styles.logo}/><span>Rivu by WaterTing · Data Transformation Services</span><Link href="/dashboard">Open workspace <ArrowRight size={13}/></Link></footer>
     </main>
   );
 }
