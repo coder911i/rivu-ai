@@ -15,12 +15,12 @@ def configure_logging() -> None:
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.stdlib.PositionalArgumentsFormatter(),
         structlog.processors.StackInfoRenderer(),
-        structlog.processors.format_exc_info,
     ]
 
     if settings.APP_ENV == "development":
         renderer = structlog.dev.ConsoleRenderer(colors=True)
     else:
+        shared_processors.append(structlog.processors.format_exc_info)
         renderer = structlog.processors.JSONRenderer()
 
     structlog.configure(

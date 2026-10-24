@@ -47,6 +47,17 @@ Thumbs.db
 *.csv
 *.xlsx
 *.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!vercel.json
+!skills-lock.json
+
+# Tool artifacts & agent outputs
+.aider-desk/
+brag-output/
+.agents/
+skills-lock.json
 
 # Logs
 logs/
@@ -60,3 +71,4 @@ minio_data/
 htmlcov/
 .coverage
 coverage.xml
+

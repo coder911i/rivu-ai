@@ -1,4 +1,29 @@
-const API = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
+const rawApi = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
+const API = rawApi.replace(/\/+$/, "").endsWith("/api/v1")
+  ? rawApi.replace(/\/+$/, "")
+  : `${rawApi.replace(/\/+$/, "")}/api/v1`;
+
+export function extractErrorMessage(data: unknown, fallback = "An unexpected error occurred."): string {
+  if (!data) return fallback;
+  if (typeof data === "string") return data;
+  if (typeof data === "object") {
+    const obj = data as Record<string, unknown>;
+    if (typeof obj.detail === "string") return obj.detail;
+    if (obj.detail && typeof obj.detail === "object") {
+      const detailObj = obj.detail as Record<string, unknown>;
+      if (typeof detailObj.message === "string") return detailObj.message;
+      if (Array.isArray(obj.detail) && obj.detail.length > 0) {
+        const first = obj.detail[0] as Record<string, unknown>;
+        if (typeof first?.msg === "string") {
+          return first.msg.replace(/^Value error,\s*/i, "");
+        }
+        if (typeof first?.message === "string") return first.message;
+      }
+    }
+    if (typeof obj.message === "string") return obj.message;
+  }
+  return fallback;
+}
 
 export async function authFetch(path: string, init: RequestInit = {}) {
   const headers = new Headers(init.headers);
@@ -33,3 +58,4 @@ export async function authFetch(path: string, init: RequestInit = {}) {
 }
 
 export { API };
+

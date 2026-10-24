@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     DEBUG: bool = True
     LOG_LEVEL: str = "INFO"
-    ALLOWED_ORIGINS: str = "http://localhost:3000"
+    ALLOWED_ORIGINS: str = "http://localhost:3000,https://rivu-ai-murex.vercel.app,https://rivu.ai"
 
     DATABASE_URL: str = "postgresql+asyncpg://rivu:rivu_dev_password@localhost:5432/rivu"
     DATABASE_URL_SYNC: str = "postgresql://rivu:rivu_dev_password@localhost:5432/rivu"

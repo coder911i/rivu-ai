@@ -36,8 +36,8 @@ def create_access_token(subject: str | UUID, extra: dict[str, Any] | None = None
     expire = now + timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
     payload = {
         "sub": str(subject),
-        "iat": now,
-        "exp": expire,
+        "iat": int(now.timestamp()),
+        "exp": int(expire.timestamp()),
         "type": "access",
         **(extra or {}),
     }
@@ -49,8 +49,8 @@ def create_refresh_token(subject: str | UUID) -> str:
     expire = now + timedelta(days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS)
     payload = {
         "sub": str(subject),
-        "iat": now,
-        "exp": expire,
+        "iat": int(now.timestamp()),
+        "exp": int(expire.timestamp()),
         "type": "refresh",
     }
     return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
