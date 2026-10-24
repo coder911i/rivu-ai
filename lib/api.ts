@@ -1,28 +1,36 @@
-const rawApi = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
-const API = rawApi.replace(/\/+$/, "").endsWith("/api/v1")
-  ? rawApi.replace(/\/+$/, "")
-  : `${rawApi.replace(/\/+$/, "")}/api/v1`;
+const RAW_API = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
+export const API = RAW_API.replace(/\/+$/, "");
 
-export function extractErrorMessage(data: unknown, fallback = "An unexpected error occurred."): string {
-  if (!data) return fallback;
-  if (typeof data === "string") return data;
-  if (typeof data === "object") {
-    const obj = data as Record<string, unknown>;
-    if (typeof obj.detail === "string") return obj.detail;
-    if (obj.detail && typeof obj.detail === "object") {
-      const detailObj = obj.detail as Record<string, unknown>;
-      if (typeof detailObj.message === "string") return detailObj.message;
-      if (Array.isArray(obj.detail) && obj.detail.length > 0) {
-        const first = obj.detail[0] as Record<string, unknown>;
-        if (typeof first?.msg === "string") {
-          return first.msg.replace(/^Value error,\s*/i, "");
-        }
-        if (typeof first?.message === "string") return first.message;
-      }
-    }
-    if (typeof obj.message === "string") return obj.message;
+export class ApiRequestError extends Error {
+  status: number;
+  type?: string;
+  requestId?: string;
+  constructor(message: string, status = 0, type?: string, requestId?: string) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+    this.type = type;
+    this.requestId = requestId;
   }
-  return fallback;
+}
+
+async function parseError(response: Response): Promise<ApiRequestError> {
+  const requestId = response.headers.get("x-request-id") || undefined;
+  type ErrorPayload = { detail?: unknown; message?: unknown; type?: unknown };
+  let data: ErrorPayload | null = null;
+  try { data = await response.clone().json() as ErrorPayload; } catch {}
+  const detail = data?.detail;
+  const detailObject = typeof detail === "object" && detail !== null ? detail as Record<string, unknown> : null;
+  const message =
+    (typeof detail === "string" && detail) ||
+    (typeof detailObject?.message === "string" ? detailObject.message : undefined) ||
+    (typeof data?.message === "string" ? data.message : undefined) ||
+    (response.status === 401 ? "Your session has expired. Please sign in again." :
+      response.status === 403 ? "You do not have permission to perform this action." :
+      response.status === 404 ? "The requested Rivu resource was not found." :
+      response.status >= 500 ? "Rivu's backend returned a server error. Please retry." :
+      "Rivu could not complete this request.");
+  return new ApiRequestError(String(message), response.status, (typeof detailObject?.type === "string" ? detailObject.type : undefined) || (typeof data?.type === "string" ? data.type : undefined), requestId);
 }
 
 export async function authFetch(path: string, init: RequestInit = {}) {
@@ -30,17 +38,32 @@ export async function authFetch(path: string, init: RequestInit = {}) {
   const access = typeof window !== "undefined" ? localStorage.getItem("rivu_access_token") : null;
   if (access) headers.set("Authorization", "Bearer " + access);
 
-  let response = await fetch(API + path, { ...init, headers });
+  let response: Response;
+  try {
+    response = await fetch(API + path, { ...init, headers });
+  } catch {
+    throw new ApiRequestError(
+      "Unable to reach the Rivu backend. The service may be waking from inactivity or your connection may be offline.",
+      0,
+      "network_error"
+    );
+  }
+
   if (response.status !== 401 || typeof window === "undefined") return response;
 
   const refresh = localStorage.getItem("rivu_refresh_token");
   if (!refresh) return response;
 
-  const refreshResponse = await fetch(API + "/auth/refresh", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: refresh }),
-  });
+  let refreshResponse: Response;
+  try {
+    refreshResponse = await fetch(API + "/auth/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refresh }),
+    });
+  } catch {
+    return response;
+  }
   if (!refreshResponse.ok) {
     localStorage.removeItem("rivu_access_token");
     localStorage.removeItem("rivu_refresh_token");
@@ -53,9 +76,21 @@ export async function authFetch(path: string, init: RequestInit = {}) {
 
   const retryHeaders = new Headers(init.headers);
   retryHeaders.set("Authorization", "Bearer " + data.tokens.access_token);
-  response = await fetch(API + path, { ...init, headers: retryHeaders });
-  return response;
+  try {
+    return await fetch(API + path, { ...init, headers: retryHeaders });
+  } catch {
+    throw new ApiRequestError("The Rivu backend could not be reached after refreshing your session.", 0, "network_error");
+  }
 }
 
-export { API };
+export async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const response = await authFetch(path, init);
+  if (!response.ok) throw await parseError(response);
+  return response.json() as Promise<T>;
+}
 
+export async function requestBlob(path: string, init: RequestInit = {}): Promise<Blob> {
+  const response = await authFetch(path, init);
+  if (!response.ok) throw await parseError(response);
+  return response.blob();
+}

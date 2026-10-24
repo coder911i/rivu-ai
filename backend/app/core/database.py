@@ -71,13 +71,19 @@ async def init_db() -> None:
             "Use postgresql+asyncpg:// for the async backend."
         )
 
+    connect_args = {}
+    parsed_url = urlsplit(database_url)
+    raw_query = dict(parse_qsl(urlsplit(settings.DATABASE_URL).query))
+    if raw_query.get("sslmode") != "disable" and parsed_url.hostname not in {"localhost", "127.0.0.1", "postgres"}:
+        connect_args["ssl"] = "require"
+
     _engine = create_async_engine(
         database_url,
         pool_size=settings.DB_POOL_SIZE,
         max_overflow=settings.DB_MAX_OVERFLOW,
         pool_timeout=settings.DB_POOL_TIMEOUT,
         pool_pre_ping=True,
-        connect_args={"ssl": "require"},
+        connect_args=connect_args,
         echo=settings.DEBUG,
     )
 

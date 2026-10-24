@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import datetime
-from sqlalchemy import String, DateTime, ForeignKey, Integer, Numeric, Boolean, Text, func
+from sqlalchemy import String, DateTime, ForeignKey, Integer, Numeric, Boolean, Text, func, Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -24,7 +24,15 @@ class TransformationPlan(Base):
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
     )
     plan_version: Mapped[str] = mapped_column(String(20), nullable=False, default="1.0")
-    status: Mapped[str] = mapped_column(String(50), nullable=False, default="planned")
+    status: Mapped[str] = mapped_column(
+        SAEnum(
+            "planned", "previewed", "approved", "rejected", "running", "completed", "failed",
+            name="transformation_status",
+            create_constraint=False,
+        ),
+        nullable=False,
+        default="planned",
+    )
     operations: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     total_operations: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     estimated_quality_gain: Mapped[float | None] = mapped_column(Numeric(5, 2))
@@ -66,7 +74,15 @@ class TransformationRun(Base):
     executed_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
     )
-    status: Mapped[str] = mapped_column(String(50), nullable=False, default="running")
+    status: Mapped[str] = mapped_column(
+        SAEnum(
+            "planned", "previewed", "approved", "rejected", "running", "completed", "failed",
+            name="transformation_status",
+            create_constraint=False,
+        ),
+        nullable=False,
+        default="running",
+    )
     operations_total: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     operations_applied: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     operations_skipped: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

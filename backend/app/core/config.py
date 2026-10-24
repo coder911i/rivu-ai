@@ -3,7 +3,7 @@
 from functools import lru_cache
 from typing import Optional
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -32,12 +32,20 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+    REQUIRE_EMAIL_VERIFICATION: bool = False
+    FRONTEND_URL: str = "http://localhost:3000"
+    SMTP_HOST: Optional[str] = None
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_FROM_EMAIL: Optional[str] = None
+    SMTP_USE_TLS: bool = True
 
     GROQ_API_KEY: Optional[str] = None
-    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+    GROQ_MODEL: str = "openai/gpt-oss-120b"
     OPENAI_API_KEY: Optional[str] = None
     GEMINI_API_KEY: Optional[str] = None
-    DEFAULT_AI_PROVIDER: str = "groq"
+    DEFAULT_AI_PROVIDER: str = Field(default="groq", validate_default=True)
 
     S3_ENDPOINT: str = "http://localhost:9000"
     S3_ACCESS_KEY: str = "minioadmin"
@@ -52,6 +60,28 @@ class Settings(BaseSettings):
     MAX_PROFILE_SAMPLE_ROWS: int = 100_000
     MAX_AI_SAMPLE_ROWS: int = 1_000
     JOB_WORKER_CONCURRENCY: int = 4
+
+    @field_validator("DEFAULT_AI_PROVIDER", mode="before")
+    @classmethod
+    def require_supported_ai_provider(cls, value):
+        if not isinstance(value, str):
+            raise ValueError("DEFAULT_AI_PROVIDER must be a string")
+        provider = value.strip().lower()
+        if provider != "groq":
+            raise ValueError(
+                f"Unsupported DEFAULT_AI_PROVIDER={provider!r}. "
+                "Rivu currently supports only 'groq'; OpenAI and Gemini adapters are not implemented."
+            )
+        return provider
+
+    @field_validator("GROQ_MODEL", mode="before")
+    @classmethod
+    def normalize_groq_model(cls, value):
+        # Groq deprecated llama-3.3-70b-versatile for free/developer usage in Aug 2026.
+        # Keep older Render env values from breaking AI refinement after deployment.
+        if value == "llama-3.3-70b-versatile":
+            return "openai/gpt-oss-120b"
+        return value
 
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod

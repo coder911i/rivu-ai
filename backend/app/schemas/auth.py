@@ -1,14 +1,21 @@
 """Pydantic schemas for authentication."""
-
 from pydantic import BaseModel, EmailStr, field_validator
 import re
 
 
 class SignupRequest(BaseModel):
-    email: EmailStr
+    email: str
     username: str
     password: str
     full_name: str | None = None
+
+    @field_validator("email")
+    @classmethod
+    def validate_email_address(cls, v: str) -> str:
+        v = v.strip().lower()
+        if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", v):
+            raise ValueError("Invalid email address")
+        return v
 
     @field_validator("username")
     @classmethod
@@ -39,8 +46,38 @@ class SignupRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: str
     password: str
+
+    @field_validator("email")
+    @classmethod
+    def validate_email_address(cls, v: str) -> str:
+        v = v.strip().lower()
+        if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", v):
+            raise ValueError("Invalid email address")
+        return v
+
+
+class EmailTokenRequest(BaseModel):
+    token: str
+
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetCompleteRequest(BaseModel):
+    token: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        if len(v) < 8 or len(v) > 128:
+            raise ValueError("Password must be between 8 and 128 characters")
+        if not any(c.islower() for c in v) or not any(c.isupper() for c in v) or not any(c.isdigit() for c in v):
+            raise ValueError("Password must contain uppercase, lowercase, and numeric characters")
+        return v
 
 
 class TokenResponse(BaseModel):

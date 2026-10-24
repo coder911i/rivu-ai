@@ -2,6 +2,7 @@
 
 from contextlib import asynccontextmanager
 import time
+import uuid
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -48,7 +49,9 @@ app.add_middleware(
 @app.middleware("http")
 async def security_headers_middleware(request: Request, call_next):
     start = time.perf_counter()
+    request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
     response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
@@ -70,6 +73,7 @@ async def security_headers_middleware(request: Request, call_next):
         method=request.method,
         path=request.url.path,
         status=response.status_code,
+        request_id=request_id,
         duration_ms=round(duration_ms, 2),
     )
     return response
@@ -81,10 +85,10 @@ async def global_exception_handler(request: Request, exc: Exception):
     detail = "Internal server error"
     if settings.APP_ENV.lower() == "development" or settings.DEBUG:
         detail = f"{type(exc).__name__}: {exc}"
-    return JSONResponse(
-        status_code=500,
-        content={"detail": detail, "type": "internal_error"},
-    )
+    request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
+    response = JSONResponse(status_code=500, content={"detail": detail, "type": "internal_error"})
+    response.headers["X-Request-ID"] = request_id
+    return response
 
 
 app.include_router(api_router, prefix="/api/v1")

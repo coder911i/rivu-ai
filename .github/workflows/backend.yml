@@ -31,3 +31,53 @@ jobs:
           DEBUG: "false"
           JWT_SECRET: test-only-secret-for-ci-012345678901234567890123456789
         run: pytest -q
+
+
+  migration-fresh-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: rivu
+          POSTGRES_PASSWORD: test-password
+          POSTGRES_DB: rivu_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rivu -d rivu_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r backend/requirements.txt
+      - name: Upgrade a fresh PostgreSQL database
+        working-directory: backend
+        env:
+          APP_ENV: test
+          DEBUG: "false"
+          JWT_SECRET: test-only-secret-for-ci-012345678901234567890123456789
+          DATABASE_URL: postgresql+asyncpg://rivu:test-password@localhost:5432/rivu_test
+        run: alembic upgrade head
+      - name: Verify migrated ORM tables and SQL reference coverage
+        working-directory: backend
+        env:
+          DATABASE_URL_SYNC: postgresql://rivu:test-password@localhost:5432/rivu_test
+        run: |
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, inspect
+          from app.core.database import Base
+          import app.models  # noqa: F401
+          engine = create_engine(os.environ["DATABASE_URL_SYNC"])
+          actual = set(inspect(engine).get_table_names())
+          expected = set(Base.metadata.tables)
+          missing = sorted(expected - actual)
+          assert not missing, f"Fresh migration omitted ORM tables: {missing}"
+          print(f"Fresh PostgreSQL migration created all {len(expected)} ORM tables.")
+          PY
+          python scripts/check_schema_parity.py

@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import polars as pl
@@ -25,8 +25,7 @@ from app.models.organization import Membership
 from app.models.project import Project
 from app.models.dataset import DataSource, DatasetVersion
 from app.models.quality import Job
-from app.ingestion.parser import validate_upload, parse_to_polars
-from app.workers.processor import process_dataset_async
+from app.ingestion.parser import validate_upload, parse_to_polars, validate_file_signature
 
 router = APIRouter()
 logger = structlog.get_logger(__name__)
@@ -34,7 +33,7 @@ logger = structlog.get_logger(__name__)
 
 async def _get_user_org(user: User, db: AsyncSession) -> UUID:
     result = await db.execute(
-        select(Membership).where(Membership.user_id == user.id).limit(1)
+        select(Membership).where(Membership.user_id == user.id, Membership.organization_id == getattr(user, "active_org_id", None)).limit(1)
     )
     m = result.scalar_one_or_none()
     if not m:
@@ -45,7 +44,6 @@ async def _get_user_org(user: User, db: AsyncSession) -> UUID:
 @router.post("/projects/{project_id}/upload", status_code=202)
 async def upload_dataset(
     project_id: UUID,
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     name: Optional[str] = Form(None),
     description: Optional[str] = Form(None),
@@ -91,6 +89,15 @@ async def upload_dataset(
         file_format = validate_upload(filename, size, content_type)
     except ValidationError as e:
         raise HTTPException(status_code=400, detail={"message": e.message, "type": "validation_error"})
+    # Cheap binary signature validation before object-storage persistence.
+    if file_format in {"xlsx", "parquet"}:
+        await file.seek(0)
+        signature = await file.read(16)
+        await file.seek(0)
+        try:
+            validate_file_signature(signature, file_format)
+        except ValidationError as e:
+            raise HTTPException(status_code=400, detail={"message": e.message, "type": "validation_error"})
 
     # Keep client-controlled filenames safe and portable in object-storage keys.
     safe_filename = re.sub(r"[^A-Za-z0-9._-]", "_", filename).strip("._")[:200] or "upload"
@@ -170,17 +177,8 @@ async def upload_dataset(
     await db.refresh(data_source)
     await db.refresh(version)
 
-    # Launch background processing
-    background_tasks.add_task(
-        process_dataset_async,
-        job_id=str(job.id),
-        version_id=str(version.id),
-        data_source_id=str(data_source.id),
-        org_id=str(org_id),
-        raw_bytes=None,
-        file_format=file_format,
-    )
-
+    # The committed job is picked up by the separate database-backed worker.
+    # This survives API restarts and does not rely on in-process BackgroundTasks.
     logger.info("dataset_uploaded", dataset_id=str(data_source.id), job_id=str(job.id))
 
     return {
@@ -247,7 +245,7 @@ async def export_dataset(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_session),
 ):
-    """Get a presigned download URL for a dataset version."""
+    """Get a presigned download URL for a dataset version or its generated sibling artifact."""
     org_id = await _get_user_org(current_user, db)
     ds = await _get_dataset_or_404(dataset_id, org_id, db)
 
@@ -261,9 +259,36 @@ async def export_dataset(
     if not version:
         raise http_not_found("Dataset version", str(version_number))
 
-    storage = get_storage()
+    requested = (format or version.file_format).lower().lstrip(".")
+    allowed = {"csv", "json", "parquet", "xlsx"}
+    if requested not in allowed:
+        raise HTTPException(status_code=400, detail={"message": f"Unsupported export format: {requested}"})
+
+    storage_key = version.storage_key
+    output_format = version.file_format
+
+    if requested != version.file_format:
+        # Refined versions create sibling artifacts under the same vN directory.
+        # Raw uploads only have their original source artifact.
+        if not version.version_label.startswith("refined"):
+            raise HTTPException(
+                status_code=404,
+                detail={"message": f"{requested.upper()} is not available for this version"},
+            )
+        prefix = version.storage_key.rsplit("/", 1)[0]
+        stem = version.storage_key.rsplit("/", 1)[1].rsplit(".", 1)[0]
+        candidate_key = f"{prefix}/{stem}.{requested}"
+        storage = get_storage()
+        if not await storage.file_exists(candidate_key):
+            raise HTTPException(
+                status_code=404,
+                detail={"message": f"{requested.upper()} artifact is not available for this version"},
+            )
+        storage_key = candidate_key
+        output_format = requested
+
     try:
-        url = await storage.get_download_url(version.storage_key, expires_in=3600)
+        url = await get_storage().get_download_url(storage_key, expires_in=3600)
     except Exception as e:
         raise HTTPException(status_code=500, detail={"message": f"Could not generate download URL: {e}"})
 
@@ -271,8 +296,8 @@ async def export_dataset(
         "download_url": url,
         "expires_in": 3600,
         "version": version_number,
-        "format": version.file_format,
-        "filename": f"{ds.name}_v{version_number}.{version.file_format}",
+        "format": output_format,
+        "filename": f"{ds.name}_v{version_number}.{output_format}",
     }
 
 

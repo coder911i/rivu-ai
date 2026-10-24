@@ -1,5 +1,6 @@
 """Approved transformation execution and preview endpoints."""
 import io
+import json
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -35,7 +36,8 @@ class ExecutePlanRequest(BaseModel):
 async def _org(user: User, db: AsyncSession) -> UUID:
     result = await db.execute(
         select(Membership.organization_id).where(
-            Membership.user_id == user.id
+            Membership.user_id == user.id,
+            Membership.organization_id == getattr(user, "active_org_id", None),
         ).limit(1)
     )
     org = result.scalar_one_or_none()
@@ -131,17 +133,18 @@ async def execute_plan(
         TransformationPlan.id == body.plan_id,
         TransformationPlan.dataset_version_id == source_version.id,
         TransformationPlan.organization_id == org,
-    ))).scalar_one_or_none()
+    ))).with_for_update().scalar_one_or_none()
     if not plan:
         raise HTTPException(404, "Transformation plan not found")
 
     if plan.status != "approved":
         raise HTTPException(409, "Transformation plan is not executable in its current state")
 
-    if plan.status == "executed":
-        raise HTTPException(409, "Transformation plan has already been executed")
+    # Serialize execution per plan so two concurrent requests cannot create the same version.
+    plan.status = "running"
+    await db.flush()
 
-    df, _ = await _load_dataframe(source_version)
+    df, source_raw = await _load_dataframe(source_version)
     operations = plan.operations
     if body.operation_indexes is not None:
         operations = [operations[i] for i in body.operation_indexes if 0 <= i < len(operations)]
@@ -163,33 +166,61 @@ async def execute_plan(
     result = TransformationEngine(df).execute_operations(operations)
     output_df: pl.DataFrame = result["df"]
 
-    # Write a new immutable version; the raw/source version is never overwritten.
-    out = io.BytesIO()
-    output_format = source_version.file_format
-    filename = f"{ds.name}_v{source_version.version_number + 1}.{output_format}"
-    if output_format == "csv":
-        output_df.write_csv(out)
-        content_type = "text/csv"
-    elif output_format == "json":
-        out.write(output_df.write_json().encode("utf-8"))
-        content_type = "application/json"
-    elif output_format == "parquet":
-        output_df.write_parquet(out)
-        content_type = "application/octet-stream"
-    else:
-        # Excel transformations are exported as CSV to keep the pipeline deterministic.
-        output_format = "csv"
-        filename = f"{ds.name}_v{source_version.version_number + 1}.csv"
-        output_df.write_csv(out)
-        content_type = "text/csv"
-
-    data = out.getvalue()
+    # Write a new immutable version; never overwrite the raw/source version.
     next_version = source_version.version_number + 1
-    storage_key = build_storage_key(str(org), str(ds.project_id), str(ds.id), next_version, filename)
-    await get_storage().upload_file(storage_key, data, content_type, {
-        "org_id": str(org), "dataset_id": str(ds.id),
-        "parent_version": str(source_version.version_number), "transformation_run": str(run.id),
-    })
+    artifact_root = f"orgs/{org}/projects/{ds.project_id}/datasets/{ds.id}/v{next_version}"
+    metadata = {"org_id": str(org), "dataset_id": str(ds.id), "parent_version": str(source_version.version_number), "transformation_run": str(run.id)}
+
+    def make_csv():
+        buf = io.BytesIO(); output_df.write_csv(buf); return buf.getvalue()
+    def make_json():
+        return output_df.write_json().encode("utf-8")
+    def make_parquet():
+        buf = io.BytesIO(); output_df.write_parquet(buf); return buf.getvalue()
+    def make_xlsx():
+        # Preserve the source workbook's other sheets and workbook container.
+        # Rivu transforms the data sheet while leaving unrelated sheets intact.
+        from openpyxl import load_workbook
+        workbook = load_workbook(io.BytesIO(source_raw))
+        sheet = workbook[workbook.sheetnames[0]]
+        if sheet.max_row > 0:
+            sheet.delete_rows(1, sheet.max_row)
+        for col_index, name in enumerate(output_df.columns, start=1):
+            sheet.cell(row=1, column=col_index, value=name)
+        for row_index, row in enumerate(output_df.iter_rows(), start=2):
+            for col_index, value in enumerate(row, start=1):
+                if hasattr(value, "isoformat") and not isinstance(value, str):
+                    value = value.isoformat()
+                sheet.cell(row=row_index, column=col_index, value=value)
+        buf = io.BytesIO(); workbook.save(buf); return buf.getvalue()
+    schema_payload = {
+        "version": next_version,
+        "row_count": output_df.height,
+        "column_count": output_df.width,
+        "columns": [{"name": n, "dtype": str(d), "nullable": bool(output_df[n].null_count() > 0)} for n, d in output_df.schema.items()],
+    }
+    artifact_builders = {
+        "csv": (make_csv, "text/csv"),
+        "json": (make_json, "application/json"),
+        "parquet": (make_parquet, "application/octet-stream"),
+        "xlsx": (make_xlsx, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+        "schema.json": (lambda: json.dumps(schema_payload, indent=2).encode("utf-8"), "application/json"),
+    }
+    artifacts = {}
+    for ext, (builder, content_type) in artifact_builders.items():
+        filename = f"{ds.name}_v{next_version}.{ext}"
+        key = f"{artifact_root}/{filename}"
+        artifact_data = builder()
+        await get_storage().upload_file(key, artifact_data, content_type, metadata)
+        artifacts[ext] = {"filename": filename, "storage_key": key, "download_url": await get_storage().get_download_url(key, expires_in=900), "size_bytes": len(artifact_data)}
+
+    # Refined outputs use modern XLSX for legacy XLS sources; xlwt is intentionally not used.
+    output_format = source_version.file_format if source_version.file_format in {"csv", "json", "parquet", "xlsx"} else "xlsx"
+    canonical = artifacts[output_format]
+    storage_key = canonical["storage_key"]
+    data = await get_storage().download_file(storage_key)
+    filename = canonical["filename"]
+    content_type = {"csv": "text/csv", "json": "application/json", "parquet": "application/octet-stream", "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xls": "application/vnd.ms-excel"}[output_format]
 
     new_version = DatasetVersion(
         data_source_id=ds.id, organization_id=org, version_number=next_version,
@@ -293,4 +324,6 @@ async def execute_plan(
                 "duration_ms": run.duration_ms},
         "version": {"id": str(new_version.id), "number": next_version,
                     "format": output_format, "rows": output_df.height, "columns": output_df.width},
+        "artifacts": artifacts,
+        "schema": schema_payload,
     }

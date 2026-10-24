@@ -16,3 +16,10 @@ Production settings:
     AUTO_CREATE_SCHEMA=false
 
 The Alembic environment imports Rivu's SQLAlchemy metadata and reads DATABASE_URL from the environment.
+
+
+## Fresh-database verification
+
+The backend CI starts a disposable PostgreSQL service, runs `alembic upgrade head` against an empty database, and checks that every SQLAlchemy ORM table exists after migration. It also verifies that every ORM table is represented in `db/schema.sql`. The reference SQL includes additional planned tables that do not yet have ORM models; those are not created by the ORM migration until their models are implemented.
+
+The initial migration bootstraps the currently registered ORM metadata. Review and freeze schema changes in explicit versioned migrations after this initial baseline; do not add model changes to the initial migration once it has shipped.

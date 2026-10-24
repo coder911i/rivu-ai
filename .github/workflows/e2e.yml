@@ -1,0 +1,48 @@
+name: Rivu E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  deployment_status:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    if: github.event_name != 'deployment_status' || github.event.deployment_status.state == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      E2E_BASE_URL: ${{ secrets.E2E_BASE_URL || github.event.deployment_status.target_url || 'https://rivu-ai-murex.vercel.app' }}
+      E2E_API_URL: ${{ secrets.E2E_API_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - name: Check live E2E configuration
+        id: live-e2e
+        shell: bash
+        run: |
+          if [[ -n "$E2E_BASE_URL" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Browser E2E runs against E2E_BASE_URL; backend integration steps are skipped unless E2E_API_URL is configured."
+          fi
+      - if: steps.live-e2e.outputs.enabled == 'true'
+        run: npx playwright install --with-deps chromium
+      - if: steps.live-e2e.outputs.enabled == 'true'
+        run: npm run test:e2e
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: rivu-playwright-report
+          path: playwright-report/
+          retention-days: 14

@@ -1,113 +1,288 @@
-# Rivu by WaterTing
+# Rivu AI
 
-**Turn messy data into production-ready intelligence.**
+### The Data Refinery for messy business data.
 
-Rivu is an AI-native Data Refinery that takes raw, inconsistent, and unstructured datasets and transforms them into clean, validated, structured, and analytically ready data intelligence.
+Rivu takes raw operational data and turns it into **clean, validated, explainable and analysis-ready data** — with an AI-assisted refinement layer that keeps humans in control.
 
----
-
-## The Pipeline
-
-```
-RAW DATA
-  → UNDERSTANDING
-  → QUALITY ANALYSIS
-  → CLEANING
-  → NORMALIZATION
-  → VALIDATION
-  → STRUCTURING
-  → ANALYTICS
-  → DATA INTELLIGENCE
-```
+> **Upload → Understand → Detect → Recommend → Approve → Refine → Measure → Export**
 
 ---
 
-## Tech Stack
+## ✦ What Rivu does
 
-| Layer | Technology |
+Business data rarely arrives ready for analysis. Rivu creates a structured refinery pipeline around it.
+
+| Stage | What happens |
 |---|---|
-| Frontend | Next.js 14, TypeScript, Tailwind CSS |
-| Backend | Python, FastAPI, Polars |
-| Database | Neon PostgreSQL |
-| AI | Groq (Llama 3.3 70B) with provider abstraction |
-| Storage | S3-compatible (MinIO for local dev) |
-| Auth | JWT + bcrypt |
+| **Ingest** | CSV, XLSX and supported data sources enter a tenant-isolated workspace |
+| **Profile** | Rows, columns, types, nulls, duplicates and distributions are measured |
+| **Quality** | Data health is scored across completeness, validity, consistency, uniqueness and integrity |
+| **AI Refinery** | AI proposes a structured transformation plan from measured dataset facts |
+| **Review** | Users inspect operations and preview changes before approval |
+| **Deterministic Transform** | Approved operations run through the cleaning engine |
+| **Re-profile** | The refined version is measured again |
+| **Intelligence** | Rivu turns measured results into an executive data report |
+| **Export** | Refined data and reports are downloaded for downstream analytics |
+
+### The core principle
+
+**AI recommends. Deterministic code executes. Versions preserve history.**
+
+Rivu does not silently mutate an uploaded dataset.
 
 ---
 
-## Repository Structure
+## ⚡ Product architecture
 
-```
-rivu/
-  frontend/        Next.js application
-  backend/         FastAPI backend
-  db/              SQL schema + migrations
-  docs/            Architecture & API docs
-  scripts/         Dev & deployment scripts
-  .env.example     Environment variable template
-  docker-compose.yml  Local dev services
+```text
+                         ┌─────────────────────────┐
+                         │        RIVU WEB         │
+                         │ Next.js + TypeScript    │
+                         │ Dashboard / Explorer    │
+                         └────────────┬────────────┘
+                                      │ HTTPS + JWT
+                                      ▼
+                         ┌─────────────────────────┐
+                         │       FASTAPI API       │
+                         │ Auth / Tenant / Dataset │
+                         │ Quality / Refinement    │
+                         └───────┬─────────┬───────┘
+                                 │         │
+                    ┌────────────┘         └──────────────┐
+                    ▼                                     ▼
+          ┌──────────────────┐                 ┌──────────────────┐
+          │     REFINERY     │                 │   AI PROVIDER    │
+          │ Polars / Python  │◄───────────────►│ Groq abstraction │
+          │ Profile / Clean  │                 │ Plans, insights  │
+          └────────┬─────────┘                 └──────────────────┘
+                   │
+          ┌────────┴─────────┐
+          ▼                  ▼
+ ┌─────────────────┐  ┌──────────────────┐
+ │ PostgreSQL      │  │ Object Storage   │
+ │ versions /      │  │ raw + refined    │
+ │ profiles / jobs │  │ datasets/files   │
+ └─────────────────┘  └──────────────────┘
 ```
 
 ---
 
-## Quick Start
+## 🧠 AI Refinery
 
-### Prerequisites
+The AI layer is deliberately separated from the execution engine.
 
-- Python 3.11+
-- Node.js 18+
-- Docker (for local PostgreSQL + MinIO)
+**Measured data facts → AI transformation plan → human approval → deterministic execution**
 
-### Setup
+A plan can contain operations such as:
+
+- null handling
+- duplicate handling
+- type normalization
+- string normalization
+- date normalization
+- validation-oriented cleanup
+- schema-aware transformations
+
+Every approved refinement creates a **new dataset version** rather than rewriting the raw source.
+
+---
+
+## 📊 Intelligence workspace
+
+Rivu's authenticated dataset workspace provides:
+
+- Data Health score
+- quality dimensions
+- column-level health matrix
+- null distribution
+- data-type distribution
+- issue severity mix
+- refinement impact
+- real-data explorer
+- search + pagination + sorting
+- before/after transformation preview
+- AI refinement plan
+- refined dataset downloads
+- schema export
+- quality PDF
+- executive intelligence PDF
+
+The dashboard is designed as an operational data workspace rather than a decorative AI demo.
+
+---
+
+## 🏗️ Repository structure
+
+```text
+rivu-ai/
+│
+├── app/                         # Next.js application
+│   ├── dashboard/               # Authenticated product workspace
+│   │   └── dataset/[id]/        # Dataset intelligence + refinery UI
+│   ├── login/                   # Authentication
+│   ├── signup/                  # Workspace onboarding
+│   ├── page.tsx                 # Public landing page
+│   └── globals.css              # Global visual system
+│
+├── lib/                         # Frontend product primitives
+│   ├── api.ts                   # Authenticated API client
+│   ├── BrandLogo.tsx            # Rivu identity
+│   ├── CursorField.tsx          # Interactive visual layer
+│   └── ProcessingRail.tsx       # Processing state UI
+│
+├── backend/
+│   ├── app/
+│   │   ├── api/v1/              # REST API endpoints
+│   │   ├── ai/                  # AI provider + planning layer
+│   │   ├── core/                # config, DB, security, storage
+│   │   ├── ingestion/            # file parsing / ingestion
+│   │   ├── models/              # SQLAlchemy domain models
+│   │   ├── services/             # business logic
+│   │   └── workers/              # processing jobs
+│   ├── alembic/                 # database migrations
+│   ├── tests/                   # backend tests
+│   ├── Dockerfile
+│   └── requirements.txt
+│
+├── db/                          # database reference material
+├── e2e/                         # Playwright product-flow tests
+├── .github/workflows/           # CI + security + E2E
+├── docs/                        # architecture and engineering docs
+└── package.json                 # frontend + E2E tooling
+```
+
+---
+
+## 🔐 Data integrity & security
+
+Rivu is built around controlled data movement:
+
+- Raw version 1 remains immutable.
+- Refinement requires an explicit approval step.
+- Every refinement creates a new version.
+- Tenant isolation is enforced through authenticated organization context.
+- Secrets belong in deployment environment stores, never Git.
+- JWT authentication protects API access.
+- Passwords use PBKDF2-SHA256 hashing.
+- Production configuration disables automatic schema creation.
+- Database changes are handled through migrations.
+- CI/security scanning is part of the release process.
+
+---
+
+## 🛠️ Stack
+
+**Frontend**
+
+Next.js · React · TypeScript · CSS Modules · Lucide
+
+**Backend**
+
+FastAPI · Python · SQLAlchemy async · Pydantic
+
+**Data**
+
+Polars · pandas/openpyxl · PostgreSQL · S3-compatible object storage
+
+**AI**
+
+Groq is the only supported provider today. `DEFAULT_AI_PROVIDER` values other than `groq` are rejected during settings initialization; OpenAI and Gemini adapters are not implemented yet.
+
+**Quality**
+
+Playwright · GitHub Actions · CodeQL · dependency/security checks
+
+---
+
+## 🚀 Local development
+
+### Frontend
 
 ```bash
-# 1. Clone and enter the repo
-cd rivu
-
-# 2. Copy environment variables
-cp .env.example .env
-# Fill in your values in .env
-
-# 3. Start local services
-docker-compose up -d
-
-# 4. Set up backend
-cd backend
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-cd ..
-
-# 5. Set up database
-psql $DATABASE_URL_SYNC < db/schema.sql
-
-# 6. Start backend
-cd backend
-uvicorn app.main:app --reload --port 8000
-
-# 7. Set up frontend (new terminal)
-cd frontend
 npm install
 npm run dev
 ```
 
-App will be running at:
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
+### Production build
+
+```bash
+npm run build
+npm start
+```
+
+### E2E
+
+```bash
+npx playwright install
+npm run test:e2e
+```
+
+### Backend
+
+```bash
+cd backend
+pip install -r requirements.txt
+```
+
+Configure the environment from:
+
+```text
+backend/.env.example
+```
+
+Production secrets must be provided through the deployment environment. Set `DEFAULT_AI_PROVIDER=groq` and configure `GROQ_API_KEY` securely. OpenAI and Gemini are intentionally rejected until their adapters and tests exist.
 
 ---
 
-## Core Principles
+## 🔄 Release philosophy
 
-1. **LLM never directly modifies data** — AI only plans; deterministic code executes
-2. **Original data is always preserved** — version 1 = raw, version 2+ = processed
-3. **Every transformation is explainable** — before/after/reason/confidence
-4. **Tenant isolation** — every resource is workspace-scoped
-5. **Security first** — no arbitrary code execution, read-only SQL validation
+Rivu treats production readiness as a gate, not a screenshot.
+
+A release should verify:
+
+1. frontend build
+2. backend tests
+3. authentication
+4. tenant isolation
+5. ingestion formats
+6. profiling
+7. quality analysis
+8. AI planning
+9. deterministic transformation
+10. version creation
+11. artifact downloads
+12. complete E2E flow
+13. security checks
+14. deployed performance/load behaviour
+
+**A green UI is not proof of a green data pipeline.**
 
 ---
 
-## License
+## 🧭 Roadmap
 
-Proprietary — WaterTing © 2026
+### Now
+- Reliable refinery pipeline
+- Dataset intelligence workspace
+- Human-approved AI refinement
+- Versioned outputs
+- Executive reporting
+
+### Next
+- Durable queue-backed processing
+- Larger dataset streaming paths
+- More connectors
+- Saved transformation recipes
+- Team collaboration and audit trails
+- Advanced lineage and observability
+
+### Scale
+Heavy profiling/refinement should move to durable queue-backed workers as traffic and dataset size increase. High request-rate targets must be validated with staged load tests rather than assumed from source code.
+
+---
+
+## Proprietary
+
+**Rivu AI by WaterTing**
+
+© 2026 WaterTing. All rights reserved.

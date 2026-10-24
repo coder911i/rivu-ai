@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import datetime
-from sqlalchemy import String, DateTime, ForeignKey, Integer, BigInteger, Numeric, Boolean, Text, func
+from sqlalchemy import String, DateTime, ForeignKey, Integer, BigInteger, Numeric, Boolean, Text, func, Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -61,8 +61,22 @@ class QualityIssue(Base):
     organization_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
-    issue_type: Mapped[str] = mapped_column(String(100), nullable=False)
-    severity: Mapped[str] = mapped_column(String(20), nullable=False)
+    issue_type: Mapped[str] = mapped_column(
+        SAEnum(
+            'missing_values', 'invalid_type', 'invalid_format', 'inconsistent_format',
+            'inconsistent_capitalization', 'whitespace', 'duplicate_rows', 'duplicate_values',
+            'outlier', 'impossible_value', 'malformed_email', 'malformed_phone',
+            'currency_inconsistency', 'date_format_inconsistency', 'category_inconsistency',
+            'schema_inconsistency', 'constant_column', 'high_cardinality', 'suspicious_pattern',
+            name="issue_type",
+            create_constraint=False,
+        ),
+        nullable=False,
+    )
+    severity: Mapped[str] = mapped_column(
+        SAEnum('critical', 'high', 'medium', 'low', 'info', name="issue_severity", create_constraint=False),
+        nullable=False,
+    )
     title: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     affected_column: Mapped[str | None] = mapped_column(String(300))
@@ -90,8 +104,16 @@ class Job(Base):
         UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
     )
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
-    job_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    status: Mapped[str] = mapped_column(String(50), nullable=False, default="queued", index=True)
+    job_type: Mapped[str] = mapped_column(
+        SAEnum('profile', 'quality_analysis', 'ai_analysis', 'transformation', 'validation', 'export', name="job_type", create_constraint=False),
+        nullable=False,
+    )
+    status: Mapped[str] = mapped_column(
+        SAEnum('queued', 'processing', 'profiling', 'ai_analysis', 'transformation', 'validation', 'completed', 'failed', 'cancelled', name="job_status", create_constraint=False),
+        nullable=False,
+        default="queued",
+        index=True,
+    )
     data_source_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("data_sources.id", ondelete="SET NULL"), index=True
     )

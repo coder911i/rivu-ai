@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowRight, ChevronDown, Database, FileCheck2, Layers3, Menu, ShieldCheck, Sparkles, Workflow, X, Zap } from "lucide-react";
+import { ArrowRight, Database, FileCheck2, Menu, Sparkles, Workflow, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 const services = [
@@ -51,9 +51,11 @@ export default function Home() {
           <Logo />
           <div className={`nav-links ${menu ? "mobile-open" : ""}`}>
             <button onClick={() => go("solutions")}>Solutions</button>
+            <button onClick={() => router.push("/our-services")}>Our Services</button>
             <button onClick={() => go("engine")}>Data Engine</button>
             <button onClick={() => go("quality")}>Quality</button>
             <button onClick={() => go("about")}>About Rivu</button>
+            <button onClick={() => go("solution-lab")}>Solution Lab</button>
           </div>
           <div className="nav-actions">
             <button className="nav-quote" onClick={() => router.push("/login")}>Get Started <span>→</span></button>
@@ -124,6 +126,34 @@ export default function Home() {
       <section id="about" className="about-section">
         <div className="about-art"><div className="about-shape" /><div className="about-logo">RIVU<small>DATA REFINERY</small></div><span>04 / THE MESSY MIDDLE</span></div>
         <div className="about-copy"><div className="section-label">BUILT BY WATERTING</div><h2>Data is not a file.<br /><em>It is a system.</em></h2><p>Sources change. Formats drift. Teams add context. Systems disagree. Rivu gives that movement a consistent refinement layer.</p><button className="dark-button" onClick={() => router.push("/login")}>Enter Rivu <span>→</span></button></div>
+      </section>
+
+      <section id="solution-lab" className="solution-lab">
+        <div className="lab-heading">
+          <div><div className="section-label">04 — SOLUTION EXPLORER</div><h2>See the workflow.<br/><em>Not just the promise.</em></h2></div>
+          <p>Illustrative solution concepts showing how Rivu can structure messy business data. These are examples, not claims of completed client engagements or measured outcomes.</p>
+        </div>
+        <div className="lab-grid">
+          <article className="lab-card lab-commerce">
+            <div className="lab-card-top"><span>CONCEPT 01 / COMMERCE</span><span className="lab-status">ILLUSTRATIVE</span></div>
+            <div className="lab-art commerce-art"><div className="lab-orbit"></div><div className="lab-product"><i></i><b></b><span></span></div><div className="lab-float lab-float-a">SKU · PRICE · STOCK</div><div className="lab-float lab-float-b">catalog.json <small>target schema</small></div></div>
+            <h3>Product data, made consistent.</h3><p>Map supplier spreadsheets into a defined catalogue structure, flag missing fields and prepare a validated export for review.</p>
+            <div className="lab-tags"><span>Field mapping</span><span>SKU checks</span><span>Structured export</span></div>
+          </article>
+          <article className="lab-card lab-ops">
+            <div className="lab-card-top"><span>CONCEPT 02 / OPERATIONS</span><span className="lab-status">ILLUSTRATIVE</span></div>
+            <div className="lab-art ops-art"><div className="ops-node ops-node-a">SOURCE A<small>orders.csv</small></div><div className="ops-node ops-node-b">SOURCE B<small>inventory.xlsx</small></div><div className="ops-lines"><i></i><i></i><i></i></div><div className="ops-core">RIVU<span>REFINE</span></div><div className="ops-node ops-node-out">CLEAN DATA<small>reviewable output</small></div></div>
+            <h3>Bring disconnected records together.</h3><p>Assess column differences, normalize formats and define quality rules before consolidating operational exports.</p>
+            <div className="lab-tags"><span>Normalization</span><span>Quality rules</span><span>Human review</span></div>
+          </article>
+          <article className="lab-card lab-insight">
+            <div className="lab-card-top"><span>CONCEPT 03 / ANALYTICS</span><span className="lab-status">ILLUSTRATIVE</span></div>
+            <div className="lab-art insight-art"><div className="insight-panel"><div className="insight-panel-head"><span>DATA QUALITY REVIEW</span><b>PREVIEW</b></div><div className="insight-row"><i></i><span>Schema alignment</span><b>Review</b></div><div className="insight-row"><i></i><span>Missing values</span><b>Flagged</b></div><div className="insight-row"><i></i><span>Duplicate records</span><b>Check</b></div><div className="insight-chart"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div><div className="insight-orb"></div></div>
+            <h3>Know what needs attention.</h3><p>Surface data-quality issues and review suggested fixes before exporting data for dashboards or downstream systems.</p>
+            <div className="lab-tags"><span>Profiling</span><span>Issue detection</span><span>Approval-first</span></div>
+          </article>
+        </div>
+        <div className="lab-bottom"><span className="lab-bottom-mark">↗</span><p><b>Have a real use case?</b> We can assess your data shape, target schema and workflow requirements before proposing an implementation.</p><button onClick={() => router.push("/our-services#contact")}>Discuss your workflow <ArrowRight/></button></div>
       </section>
 
       <section className="final-cta">

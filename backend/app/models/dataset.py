@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Optional
 from sqlalchemy import (
     String, DateTime, ForeignKey, Integer, BigInteger, Numeric,
-    Boolean, Text, func, ARRAY, UniqueConstraint
+    Boolean, Text, func, ARRAY, UniqueConstraint, Enum as SAEnum
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -31,7 +31,13 @@ class DataSource(Base):
     original_filename: Mapped[str] = mapped_column(String(500), nullable=False)
     file_format: Mapped[str] = mapped_column(String(20), nullable=False)
     status: Mapped[str] = mapped_column(
-        String(50), nullable=False, default="uploading"
+        SAEnum(
+            "uploading", "uploaded", "processing", "profiled", "analyzed", "transformed", "failed", "archived",
+            name="dataset_status",
+            create_constraint=False,
+        ),
+        nullable=False,
+        default="uploading",
     )
     current_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     tags: Mapped[list] = mapped_column(ARRAY(String), default=list)

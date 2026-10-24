@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import String, DateTime, ForeignKey, Integer, BigInteger, Numeric, Boolean, Text, func, ARRAY
+from sqlalchemy import String, DateTime, ForeignKey, Integer, BigInteger, Numeric, Boolean, Text, func, ARRAY, Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -66,7 +66,17 @@ class ColumnProfile(Base):
     column_index: Mapped[int] = mapped_column(Integer, nullable=False)
     column_name: Mapped[str] = mapped_column(String(300), nullable=False)
     inferred_type: Mapped[str | None] = mapped_column(String(50))
-    semantic_type: Mapped[str] = mapped_column(String(50), nullable=False, default="unknown")
+    semantic_type: Mapped[str] = mapped_column(
+        SAEnum(
+            'string', 'integer', 'float', 'boolean', 'date', 'datetime', 'timestamp',
+            'email', 'phone', 'currency', 'url', 'id_like', 'categorical',
+            'text', 'json', 'array', 'unknown',
+            name="column_semantic_type",
+            create_constraint=False,
+        ),
+        nullable=False,
+        default="unknown",
+    )
     ai_semantic_type: Mapped[str | None] = mapped_column(String(100))
     ai_semantic_reason: Mapped[str | None] = mapped_column(Text)
     null_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

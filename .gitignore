@@ -72,3 +72,6 @@ htmlcov/
 .coverage
 coverage.xml
 
+# Generated Playwright test artifacts
+playwright-report/
+test-results/
