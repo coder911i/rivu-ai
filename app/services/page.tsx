@@ -117,7 +117,8 @@ export default function ServicesPage() {
       const uploadResponse = await authFetch("/datasets/projects/" + encodeURIComponent(projectId) + "/upload", { method: "POST", body: form });
       const uploaded = await jsonOrEmpty(uploadResponse);
       if (!uploadResponse.ok) throw new Error(messageFrom(uploaded as ApiError, "Upload failed."));
-      const id = String(uploaded.dataset?.id || "");
+      const uploadedDataset = uploaded.dataset as { id?: string } | undefined;
+      const id = String(uploadedDataset?.id || "");
       if (!id) throw new Error("Upload completed but the API did not return a dataset ID.");
       setDatasetId(id);
       setStage("profile");
