@@ -1,3 +1,4 @@
+/* Ensure the services page is deployed alongside its CSS module. */
 "use client";
 import { useState } from "react";
 import { ArrowRight, Building2, Factory, GraduationCap, HeartPulse, Layers3, MessageCircle, Phone, ShieldCheck, ShoppingBag, Truck, Workflow, CheckCircle2, Database, Boxes } from "lucide-react";
