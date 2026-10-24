@@ -6,7 +6,7 @@ import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, ArrowRight, CheckCircle2, ChevronDown, Database, Download,
-  FileJson, FileSpreadsheet, FileUp, LoaderCircle, LockKeyhole, RefreshCw,
+  FileJson, FileSpreadsheet, FileUp, LoaderCircle, LockKeyhole,
   ShieldCheck, Sparkles, WandSparkles, XCircle
 } from "lucide-react";
 import { authFetch } from "../../lib/api";
