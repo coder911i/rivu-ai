@@ -1,6 +1,7 @@
 """Dataset intelligence endpoints: profile, quality, jobs and AI plans."""
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
+import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,12 +14,14 @@ from app.models.profile import DataProfile, ColumnProfile
 from app.models.quality import QualityReport, QualityIssue, Job
 from app.models.transformation import TransformationPlan
 from app.ai.factory import get_ai_provider
+from app.core.config import settings
 from app.ai.planner import generate_transformation_plan
 from app.core.storage import get_storage
 from app.ingestion.parser import parse_to_polars
 import polars as pl
 
 router = APIRouter()
+logger = structlog.get_logger(__name__)
 
 async def org_id_for(user: User, db: AsyncSession) -> UUID:
     result = await db.execute(select(Membership.organization_id).where(
@@ -125,15 +128,38 @@ async def ai_plan(dataset_id: UUID, current_user: User = Depends(get_current_use
         raise HTTPException(409, "Profile and quality report must finish first")
     cols = (await db.execute(select(ColumnProfile).where(ColumnProfile.data_profile_id == p.id).order_by(ColumnProfile.column_index))).scalars().all()
     issues = (await db.execute(select(QualityIssue).where(QualityIssue.quality_report_id == q.id))).scalars().all()
+    if not settings.GROQ_API_KEY:
+        logger.error("ai_plan_configuration_missing", dataset_id=str(dataset_id), provider="groq")
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": "AI planning is not configured on the backend. Set GROQ_API_KEY in the Render rivu-api service environment.",
+                "type": "ai_configuration_error",
+            },
+        )
     try:
         plan = await generate_transformation_plan(
-        get_ai_provider(),
-        {"row_count": p.row_count, "column_count": p.column_count, "duplicate_row_count": p.duplicate_row_count, "duplicate_row_pct": float(p.duplicate_row_pct or 0), "total_null_pct": float(p.total_null_pct or 0), "filename": ds.original_filename, "file_format": ds.file_format},
-        {"overall_score": float(q.overall_score), "completeness_score": float(q.completeness_score or 0), "validity_score": float(q.validity_score or 0), "consistency_score": float(q.consistency_score or 0), "uniqueness_score": float(q.uniqueness_score or 0), "issues": [{"issue_type": i.issue_type, "severity": i.severity, "affected_column": i.affected_column, "title": i.title} for i in issues]},
-        [{"column_name": c.column_name, "semantic_type": c.semantic_type, "null_pct": float(c.null_pct or 0), "uniqueness_pct": float(c.uniqueness_pct or 0), "is_constant": c.is_constant, "sample_values": c.sample_values or [], "date_formats": c.date_formats or []} for c in cols],
-    )
+            get_ai_provider(),
+            {"row_count": p.row_count, "column_count": p.column_count, "duplicate_row_count": p.duplicate_row_count, "duplicate_row_pct": float(p.duplicate_row_pct or 0), "total_null_pct": float(p.total_null_pct or 0), "filename": ds.original_filename, "file_format": ds.file_format},
+            {"overall_score": float(q.overall_score), "completeness_score": float(q.completeness_score or 0), "validity_score": float(q.validity_score or 0), "consistency_score": float(q.consistency_score or 0), "uniqueness_score": float(q.uniqueness_score or 0), "issues": [{"issue_type": i.issue_type, "severity": i.severity, "affected_column": i.affected_column, "title": i.title} for i in issues]},
+            [{"column_name": c.column_name, "semantic_type": c.semantic_type, "null_pct": float(c.null_pct or 0), "uniqueness_pct": float(c.uniqueness_pct or 0), "is_constant": c.is_constant, "sample_values": c.sample_values or [], "date_formats": c.date_formats or []} for c in cols],
+        )
     except Exception as exc:
-        raise HTTPException(502, detail={"message": "The AI refinement service could not generate a plan.", "type": "ai_provider_error", "cause": str(exc)[:300]})
+        logger.error(
+            "ai_plan_generation_failed",
+            dataset_id=str(dataset_id),
+            user_id=str(current_user.id),
+            error_type=type(exc).__name__,
+            error=str(exc)[:500],
+        )
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": "The AI refinement service could not generate a plan.",
+                "type": "ai_provider_error",
+                "cause": str(exc)[:300],
+            },
+        )
     record = TransformationPlan(
         dataset_version_id=version.id, organization_id=org, created_by=current_user.id,
         status="planned", operations=plan.get("operations", []),
