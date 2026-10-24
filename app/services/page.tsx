@@ -46,7 +46,7 @@ export default function ServicesPage() {
   const [stage, setStage] = useState<"idle" | "upload" | "profile" | "plan" | "preview" | "execute" | "done">("idle");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [authReady, setAuthReady] = useState(false);
+  const [authReady, setAuthReady] = useState(false);\n  const [signedIn, setSignedIn] = useState(false);
 
   useEffect(() => {
     setAuthReady(true);
@@ -244,7 +244,7 @@ export default function ServicesPage() {
 
       <section className={styles.workbench} id="start">
         <div className={styles.workbenchHead}><div><div className={styles.kicker}>02 / START A TRANSFORMATION</div><h2>Your data workbench</h2><p>Files are sent to your authenticated Rivu API and stored under your selected project.</p></div><span className={styles.securePill}><LockKeyhole size={13}/> Authenticated</span></div>
-        {!authReady ? <div className={styles.state}><LoaderCircle className={styles.spin}/> Loading service…</div> : !localStorage.getItem("rivu_access_token") ? (
+        {!authReady ? <div className={styles.state}><LoaderCircle className={styles.spin}/> Loading service…</div> : !signedIn ? (
           <div className={styles.signin}><LockKeyhole size={22}/><h3>Sign in to transform data</h3><p>Use your Rivu workspace to upload, analyze and refine datasets securely.</p><button className={styles.primary} onClick={() => router.push("/login")}>Sign in <ArrowRight size={15}/></button></div>
         ) : (
           <>
