@@ -22,6 +22,8 @@ type ArtifactMap = Record<string, Artifact>;
 type DatasetProfile = { dataset?: { id: string; name: string; status: string }; profile?: { row_count: number; column_count: number; duplicate_row_count: number; total_null_pct: number }; version?: { number: number; quality_score?: number | null } };
 type ApiError = { detail?: string | { message?: string }; message?: string };
 
+const subscribeToNothing = () => () => {};
+
 const MAX_BYTES = 500 * 1024 * 1024;
 const ACCEPTED = new Set(["csv", "json", "xlsx", "xls", "parquet"]);
 
@@ -48,16 +50,12 @@ export default function ServicesPage() {
   const [stage, setStage] = useState<"idle" | "upload" | "profile" | "plan" | "preview" | "execute" | "done">("idle");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const authReady = useSyncExternalStore(() => () => {}, () => true, () => false);
-  const [signedIn, setSignedIn] = useState(false);
+  const authReady = useSyncExternalStore(subscribeToNothing, () => true, () => false);
+  const signedIn = useSyncExternalStore(subscribeToNothing, () => Boolean(localStorage.getItem("rivu_access_token")), () => false);
 
   useEffect(() => {
     const token = localStorage.getItem("rivu_access_token");
-    setSignedIn(Boolean(token));
-    if (!token) {
-      setNotice("Sign in to use Data Transformation Services. Your files remain in your private workspace.");
-      return;
-    }
+    if (!token) return;
     let cancelled = false;
     (async () => {
       try {
