@@ -46,11 +46,13 @@ export default function ServicesPage() {
   const [stage, setStage] = useState<"idle" | "upload" | "profile" | "plan" | "preview" | "execute" | "done">("idle");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [authReady, setAuthReady] = useState(false);\n  const [signedIn, setSignedIn] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
 
   useEffect(() => {
     setAuthReady(true);
     const token = localStorage.getItem("rivu_access_token");
+    setSignedIn(Boolean(token));
     if (!token) {
       setNotice("Sign in to use Data Transformation Services. Your files remain in your private workspace.");
       return;
