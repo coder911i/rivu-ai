@@ -31,6 +31,9 @@ def detect_file_format(filename: str, content_type: str) -> str:
     return formats[suffix]
 
 
+FALLBACK_ENCODING = "latin-1"
+
+
 def detect_encoding(data: bytes) -> str:
     """Prefer strict UTF-8; otherwise use chardet, with Windows-1252 as a documented fallback.
 

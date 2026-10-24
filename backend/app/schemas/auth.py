@@ -4,10 +4,18 @@ import re
 
 
 class SignupRequest(BaseModel):
-    email: EmailStr
+    email: str
     username: str
     password: str
     full_name: str | None = None
+
+    @field_validator("email")
+    @classmethod
+    def validate_email_address(cls, v: str) -> str:
+        v = v.strip().lower()
+        if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", v):
+            raise ValueError("Invalid email address")
+        return v
 
     @field_validator("username")
     @classmethod
@@ -38,8 +46,16 @@ class SignupRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: str
     password: str
+
+    @field_validator("email")
+    @classmethod
+    def validate_email_address(cls, v: str) -> str:
+        v = v.strip().lower()
+        if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", v):
+            raise ValueError("Invalid email address")
+        return v
 
 
 class EmailTokenRequest(BaseModel):

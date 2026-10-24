@@ -20,7 +20,7 @@ services:
       retries: 5
 
   minio:
-    image: minio/minio:latest
+    image: cgr.dev/chainguard/minio:latest
     container_name: rivu_minio
     command: server /data --console-address ":9001"
     environment:

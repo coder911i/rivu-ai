@@ -3,7 +3,7 @@
 from functools import lru_cache
 from typing import Optional
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     GROQ_MODEL: str = "openai/gpt-oss-120b"
     OPENAI_API_KEY: Optional[str] = None
     GEMINI_API_KEY: Optional[str] = None
-    DEFAULT_AI_PROVIDER: str = "groq"
+    DEFAULT_AI_PROVIDER: str = Field(default="groq", validate_default=True)
 
     S3_ENDPOINT: str = "http://localhost:9000"
     S3_ACCESS_KEY: str = "minioadmin"
@@ -64,7 +64,9 @@ class Settings(BaseSettings):
     @field_validator("DEFAULT_AI_PROVIDER", mode="before")
     @classmethod
     def require_supported_ai_provider(cls, value):
-        provider = str(value).strip().lower() if value is not None else "groq"
+        if not isinstance(value, str):
+            raise ValueError("DEFAULT_AI_PROVIDER must be a string")
+        provider = value.strip().lower()
         if provider != "groq":
             raise ValueError(
                 f"Unsupported DEFAULT_AI_PROVIDER={provider!r}. "

@@ -10,8 +10,39 @@ def test_cleaning_is_deterministic_and_does_not_mutate_source():
         {"type": "normalize_email", "column": "email", "parameters": {}},
     ])
     assert source["name"].to_list() == ["  Alice  ", "BOB"]
+    assert source["email"].to_list() == [" A@X.COM ", "b@x.com"]
     assert result["df"]["name"].to_list() == ["Alice", "BOB"]
     assert result["df"]["email"].to_list() == ["a@x.com", "b@x.com"]
+
+
+def test_normalize_email_lowercases_and_trims_whitespace():
+    source = pl.DataFrame({"email": ["  Alice@EXAMPLE.com  ", "\tBOB@Domain.ORG\n", "already.clean@test.co"]})
+    result = TransformationEngine(source).execute_operations([
+        {"type": "normalize_email", "column": "email", "parameters": {}},
+    ])
+    assert result["ops_failed"] == 0
+    assert result["ops_applied"] == 1
+    # Verify source DataFrame remains unchanged
+    assert source["email"].to_list() == ["  Alice@EXAMPLE.com  ", "\tBOB@Domain.ORG\n", "already.clean@test.co"]
+    assert result["df"]["email"].to_list() == [
+        "alice@example.com",
+        "bob@domain.org",
+        "already.clean@test.co",
+    ]
+
+
+def test_lowercase_does_not_trim_whitespace():
+    source = pl.DataFrame({"text": ["  Alice  ", " BOB "]})
+    result = TransformationEngine(source).execute_operations([
+        {"type": "lowercase", "column": "text", "parameters": {}},
+    ])
+    assert result["ops_failed"] == 0
+    assert result["ops_applied"] == 1
+    # Verify source DataFrame remains unchanged
+    assert source["text"].to_list() == ["  Alice  ", " BOB "]
+    # Verify letter case changes but whitespace is preserved
+    assert result["df"]["text"].to_list() == ["  alice  ", " bob "]
+
 
 
 def test_duplicate_and_null_cleanup():

@@ -29,3 +29,11 @@ def test_invalid_column_fails_operation_without_corrupting_dataframe():
     result = run(source, [{"type": "lowercase", "column": "missing", "parameters": {}}])
     assert result["ops_failed"] == 1
     assert result["df"].to_dicts() == source.to_dicts()
+
+
+def test_normalize_email_direct():
+    source = pl.DataFrame({"email": ["  User@Example.COM  ", " TEST@Domain.org "]})
+    result = run(source, [{"type": "normalize_email", "column": "email", "parameters": {}}])
+    assert result["ops_failed"] == 0
+    assert source["email"].to_list() == ["  User@Example.COM  ", " TEST@Domain.org "]
+    assert result["df"]["email"].to_list() == ["user@example.com", "test@domain.org"]

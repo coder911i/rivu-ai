@@ -1,6 +1,7 @@
 """
-AI Provider Abstraction — allows swapping Groq/OpenAI/Gemini/local.
-All providers must implement the AIProvider interface.
+AI Provider Abstraction.
+Groq is currently the supported provider. Any future provider (such as OpenAI
+or Gemini) must implement the AIProvider interface when supported.
 """
 
 from abc import ABC, abstractmethod

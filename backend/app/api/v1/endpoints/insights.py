@@ -51,7 +51,7 @@ async def profile(dataset_id: UUID, current_user: User = Depends(get_current_use
         raise HTTPException(404, "Dataset version not found")
     p = (await db.execute(select(DataProfile).where(DataProfile.dataset_version_id == version.id))).scalar_one_or_none()
     if not p:
-        raise HTTPException(202, "Dataset is still processing")
+        raise HTTPException(404, "Dataset is still processing")
     cols = (await db.execute(select(ColumnProfile).where(ColumnProfile.data_profile_id == p.id).order_by(ColumnProfile.column_index))).scalars().all()
     return {
         "dataset": {"id": str(ds.id), "name": ds.name, "status": ds.status},

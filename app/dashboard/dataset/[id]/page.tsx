@@ -27,13 +27,15 @@ function apiErrorMessage(data: unknown, fallback: string): string {
   const detail = payload?.detail;
   if (typeof detail === "string" && detail.trim()) return detail;
   if (detail && typeof detail === "object") {
-    if (typeof detail.message === "string" && detail.message.trim()) return detail.message;
-    if (typeof detail.error === "string" && detail.error.trim()) return detail.error;
+    const detailObj = detail as Record<string, unknown>;
+    if (typeof detailObj.message === "string" && detailObj.message.trim()) return detailObj.message;
+    if (typeof detailObj.error === "string" && detailObj.error.trim()) return detailObj.error;
     try { return JSON.stringify(detail); } catch { return fallback; }
   }
   if (typeof payload?.message === "string" && payload.message.trim()) return payload.message;
   return fallback;
 }
+
 
 export default function DatasetPage({params}:{params:Promise<{id:string}>}){
  const router=useRouter();
