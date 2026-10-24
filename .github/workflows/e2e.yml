@@ -29,11 +29,11 @@ jobs:
         id: live-e2e
         shell: bash
         run: |
-          if [[ -n "$E2E_BASE_URL" && -n "$E2E_API_URL" ]]; then
+          if [[ -n "$E2E_BASE_URL" ]]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Live E2E skipped: configure E2E_BASE_URL and E2E_API_URL secrets to run the deployed workflow."
+            echo "::warning::Browser E2E runs against E2E_BASE_URL; backend integration steps are skipped unless E2E_API_URL is configured."
           fi
       - if: steps.live-e2e.outputs.enabled == 'true'
         run: npx playwright install --with-deps chromium
