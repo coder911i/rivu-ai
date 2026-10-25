@@ -13,11 +13,14 @@ type PlanOperation = { type: string; column?: string | null; confidence?: number
 type Plan = { id: string; summary?: string; dataset_summary?: string; detected_domain?: string; operations: PlanOperation[] };
 type Artifact = { filename: string; download_url: string };
 type DatasetProfile = { dataset?: { id: string; name: string; status: string }; profile?: { row_count: number; column_count: number; duplicate_row_count: number; total_null_pct: number }; version?: { number: number; quality_score?: number | null } };
-type ApiError = { detail?: string | { message?: string }; message?: string };
+type ApiError = { detail?: string | { message?: string; cause?: string; type?: string }; message?: string };
 
 function messageFrom(data: ApiError, fallback: string) {
   if (typeof data?.detail === "string") return data.detail;
-  if (data?.detail && typeof data.detail === "object" && typeof data.detail.message === "string") return data.detail.message;
+  if (data?.detail && typeof data.detail === "object" && typeof data.detail.message === "string") {
+    const cause = typeof data.detail.cause === "string" ? data.detail.cause : "";
+    return cause ? data.detail.message + " Details: " + cause : data.detail.message;
+  }
   return data?.message || fallback;
 }
 async function jsonOrEmpty(response: Response): Promise<Record<string, unknown>> {
@@ -92,7 +95,18 @@ export default function ServicesPage() {
         const [pResponse, qResponse] = await Promise.all([authFetch("/datasets/" + id + "/profile"), authFetch("/datasets/" + id + "/quality")]);
         if (pResponse.status === 401 || qResponse.status === 401) { router.push("/login"); return; }
         if (pResponse.ok && qResponse.ok) { ready = await jsonOrEmpty(pResponse) as DatasetProfile; await qResponse.json().catch(() => ({})); break; }
-        if (![202, 404].includes(pResponse.status) && !pResponse.ok) throw new Error(messageFrom(await jsonOrEmpty(pResponse) as ApiError, "Profiling failed."));
+        if (pResponse.status >= 500) throw new Error(messageFrom(await jsonOrEmpty(pResponse) as ApiError, "Profiling failed."));
+        if (qResponse.status >= 500) throw new Error(messageFrom(await jsonOrEmpty(qResponse) as ApiError, "Quality analysis failed."));
+        const jobsResponse = await authFetch("/datasets/" + id + "/jobs");
+        if (jobsResponse.ok) {
+          const jobsData = await jsonOrEmpty(jobsResponse);
+          const jobs = Array.isArray(jobsData.jobs) ? jobsData.jobs as Array<{type?: string; status?: string; progress?: number; message?: string; error?: string}> : [];
+          const latest = jobs.find(job => job.type === "profile");
+          if (latest?.status === "failed") throw new Error("Dataset processing failed: " + (latest.error || "The backend worker failed without an error message."));
+          if (latest && (latest.status === "queued" || latest.status === "processing")) {
+            setStage((latest.message || "Profiling dataset") + (typeof latest.progress === "number" ? " (" + latest.progress + "%)" : ""));
+          }
+        }
       }
       if (!ready) throw new Error("Profiling is taking longer than expected. Your upload is saved; retry in the dataset workspace.");
       setProfile(ready); setNotice("Profile ready. Generate a plan to inspect proposed changes."); setStage("Ready");
