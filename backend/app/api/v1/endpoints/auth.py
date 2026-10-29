@@ -15,12 +15,17 @@ from app.core.database import get_session
 from app.core.email import send_email
 from app.core.security import (
     hash_password, verify_password, create_access_token,
-    create_refresh_token, decode_token, get_current_user
+    create_refresh_token, decode_token, get_current_user,
+    verify_google_id_token
 )
 from app.core.config import settings
 from app.models.user import User
 from app.models.organization import Organization, Membership
-from app.schemas.auth import SignupRequest, LoginRequest, TokenResponse, UserResponse, EmailTokenRequest, PasswordResetRequest, PasswordResetCompleteRequest
+from app.schemas.auth import (
+    SignupRequest, LoginRequest, TokenResponse, UserResponse,
+    EmailTokenRequest, PasswordResetRequest, PasswordResetCompleteRequest,
+    GoogleAuthRequest
+)
 
 router = APIRouter()
 logger = structlog.get_logger(__name__)
@@ -236,7 +241,7 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_session)):
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
 
-    if not user or not verify_password(body.password, user.password_hash):
+    if not user or not user.password_hash or not verify_password(body.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"message": "Invalid email or password", "type": "unauthorized"},
@@ -279,6 +284,169 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_session)):
             "email": user.email,
             "username": user.username,
             "full_name": user.full_name,
+        },
+        "organization": {
+            "id": org_id,
+            "name": org_name,
+        },
+        "tokens": {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "expires_in": settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        },
+    }
+
+
+@router.post("/google", response_model=dict)
+async def google_auth(body: GoogleAuthRequest, db: AsyncSession = Depends(get_session)):
+    """Authenticate or register a user with a verified Google ID token."""
+    id_info = verify_google_id_token(body.id_token)
+
+    google_sub = str(id_info.get("sub") or "").strip()
+    email = str(id_info.get("email") or "").strip().lower()
+    email_verified = bool(id_info.get("email_verified", False))
+    full_name = (id_info.get("name") or "").strip() or None
+    picture = (id_info.get("picture") or "").strip() or None
+
+    if not google_sub or not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"message": "Google token missing required claims", "type": "invalid_claims"},
+        )
+
+    if not email_verified:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"message": "Google account email is not verified", "type": "unverified_email"},
+        )
+
+    # 1. Lookup by Google sub
+    result = await db.execute(select(User).where(User.google_id == google_sub))
+    user = result.scalar_one_or_none()
+
+    # 2. If not found, check by verified email (safe linking)
+    if not user:
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+        if user:
+            user.google_id = google_sub
+
+    # 3. Check status and activate if pending verification
+    if user:
+        if user.status == "suspended":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"message": "Account has been suspended", "type": "forbidden"},
+            )
+        if user.status == "inactive":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"message": "Account is not active", "type": "forbidden"},
+            )
+        if user.status == "pending_verification":
+            user.status = "active"
+            user.email_verified = True
+            user.email_verification_token_hash = None
+            user.email_verification_expires_at = None
+        elif not user.email_verified:
+            user.email_verified = True
+
+        if not user.full_name and full_name:
+            user.full_name = full_name
+        if not user.avatar_url and picture:
+            user.avatar_url = picture
+        user.last_login_at = datetime.now(timezone.utc)
+    else:
+        # 4. Create new user
+        base_username = re.sub(r"[^a-zA-Z0-9_-]", "", email.split("@")[0].lower())
+        if len(base_username) < 3:
+            base_username = f"user_{base_username}"[:50]
+        if len(base_username) > 50:
+            base_username = base_username[:50]
+
+        username = base_username
+        counter = 1
+        while True:
+            existing_u = await db.execute(select(User).where(User.username == username))
+            if not existing_u.scalar_one_or_none():
+                break
+            suffix = f"_{counter}"
+            username = f"{base_username[:(50 - len(suffix))]}{suffix}"
+            counter += 1
+
+        user = User(
+            email=email,
+            username=username,
+            full_name=full_name or username,
+            google_id=google_sub,
+            password_hash=None,
+            token_version=0,
+            refresh_token_version=0,
+            email_verified=True,
+            status="active",
+            avatar_url=picture,
+            last_login_at=datetime.now(timezone.utc),
+        )
+        db.add(user)
+        await db.flush()
+
+    # 5. Ensure organization membership
+    membership_result = await db.execute(
+        select(Membership, Organization)
+        .join(Organization, Organization.id == Membership.organization_id)
+        .where(Membership.user_id == user.id, Membership.accepted_at.is_not(None))
+        .order_by(Membership.created_at.asc())
+        .limit(1)
+    )
+    row = membership_result.first()
+    if row is None:
+        base_slug = _make_org_slug(user.username)
+        slug = base_slug
+        counter = 1
+        while True:
+            existing_slug = await db.execute(select(Organization).where(Organization.slug == slug))
+            if not existing_slug.scalar_one_or_none():
+                break
+            slug = f"{base_slug}-{counter}"
+            counter += 1
+
+        org = Organization(
+            name=f"{user.full_name or user.username}'s Workspace",
+            slug=slug,
+            owner_id=user.id,
+            plan="free",
+        )
+        db.add(org)
+        await db.flush()
+
+        membership = Membership(
+            organization_id=org.id,
+            user_id=user.id,
+            role="owner",
+            accepted_at=datetime.now(timezone.utc),
+        )
+        db.add(membership)
+        org_id = str(org.id)
+        org_name = org.name
+    else:
+        org_id = str(row.Organization.id)
+        org_name = row.Organization.name
+
+    await db.commit()
+
+    access_token = create_access_token(user.id, {"org_id": org_id, "tv": user.token_version})
+    refresh_token = create_refresh_token(user.id, {"rtv": user.refresh_token_version})
+
+    logger.info("google_auth_success", user_id=str(user.id), email=user.email)
+
+    return {
+        "user": {
+            "id": str(user.id),
+            "email": user.email,
+            "username": user.username,
+            "full_name": user.full_name,
+            "avatar_url": user.avatar_url,
         },
         "organization": {
             "id": org_id,

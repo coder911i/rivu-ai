@@ -1,5 +1,6 @@
 """Pydantic schemas for authentication."""
-from pydantic import BaseModel, EmailStr, field_validator
+from typing import Any
+from pydantic import BaseModel, EmailStr, field_validator, model_validator
 import re
 
 
@@ -96,3 +97,30 @@ class UserResponse(BaseModel):
     created_at: str
 
     model_config = {"from_attributes": True}
+
+
+class GoogleAuthRequest(BaseModel):
+    id_token: str | None = None
+    credential: str | None = None
+
+    @field_validator("id_token", mode="before")
+    @classmethod
+    def validate_id_token(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            v = v.strip()
+        return v or None
+
+    @field_validator("credential", mode="before")
+    @classmethod
+    def validate_credential(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            v = v.strip()
+        return v or None
+
+    @model_validator(mode="after")
+    def check_token_present(self) -> "GoogleAuthRequest":
+        token = self.id_token or self.credential
+        if not token:
+            raise ValueError("Google ID token is required")
+        self.id_token = token
+        return self

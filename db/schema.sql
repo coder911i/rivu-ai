@@ -59,7 +59,7 @@ CREATE TABLE users (
   email         VARCHAR(320) NOT NULL UNIQUE,
   username      VARCHAR(50) NOT NULL UNIQUE,
   full_name     VARCHAR(200),
-  password_hash TEXT NOT NULL,
+  password_hash TEXT,
   token_version INTEGER NOT NULL DEFAULT 0,
   refresh_token_version INTEGER NOT NULL DEFAULT 0,
   email_verified BOOLEAN NOT NULL DEFAULT FALSE,
@@ -69,6 +69,7 @@ CREATE TABLE users (
   password_reset_expires_at TIMESTAMPTZ,
   status        user_status NOT NULL DEFAULT 'active',
   avatar_url    TEXT,
+  google_id     VARCHAR(255) UNIQUE,
   last_login_at TIMESTAMPTZ,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -76,6 +77,7 @@ CREATE TABLE users (
 
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_username ON users(username);
+CREATE INDEX idx_users_google_id ON users(google_id);
 
 CREATE TABLE organizations (
   id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

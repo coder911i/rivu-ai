@@ -20,7 +20,12 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     DEBUG: bool = True
     LOG_LEVEL: str = "INFO"
-    ALLOWED_ORIGINS: str = "http://localhost:3000,https://rivu-ai-murex.vercel.app,https://rivu.ai"
+    ALLOWED_ORIGINS: str = (
+        "http://localhost:3000,"
+        "https://rivu-ai-woad.vercel.app,"
+        "https://rivu-ai-murex.vercel.app,"
+        "https://rivu.ai"
+    )
 
     DATABASE_URL: str = "postgresql+asyncpg://rivu:rivu_dev_password@localhost:5432/rivu"
     DATABASE_URL_SYNC: str = "postgresql://rivu:rivu_dev_password@localhost:5432/rivu"
@@ -36,6 +41,7 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+    GOOGLE_CLIENT_ID: Optional[str] = "545630055112-k1k5c5dvhhegts3ffpqmb15oi3f17hlr.apps.googleusercontent.com"
     REQUIRE_EMAIL_VERIFICATION: bool = False
     FRONTEND_URL: str = "http://localhost:3000"
     SMTP_HOST: Optional[str] = None

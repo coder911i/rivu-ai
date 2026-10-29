@@ -6,6 +6,7 @@ import Link from "next/link";
 import BrandLogo from "../../lib/BrandLogo";
 import CursorField from "../../lib/CursorField";
 import ProcessingRail from "../../lib/ProcessingRail";
+import GoogleSignInButton from "../../lib/GoogleSignInButton";
 import styles from "./login.module.css";
 import { API, extractErrorMessage } from "../../lib/api";
 
@@ -88,6 +89,8 @@ export default function Login() {
             {busy ? "Signing in…" : "Enter Rivu"} <ArrowRight size={17} />
           </button>
         </form>
+        <div className={styles.authDivider}><span>or continue with</span></div>
+        <GoogleSignInButton busy={busy} setBusy={setBusy} setError={setError} text="continue_with" />
         <div className={styles.note}><ShieldCheck size={16} /> Your data stays inside your authenticated workspace.</div>
         <p style={{ marginTop: 16, textAlign: "center", fontSize: 12 }}>
           <Link href="/reset-password" style={{ color: "#a28eff" }}>Forgot password?</Link>

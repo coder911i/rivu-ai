@@ -134,3 +134,44 @@ async def require_org_role(user, db, allowed_roles: set[str]):
             detail={"message": "Insufficient organization permissions", "type": "forbidden"},
         )
     return membership
+
+
+def verify_google_id_token(token: str, client_id: str | None = None) -> dict[str, Any]:
+    """Verify a Google ID token's signature, issuer, expiration, and audience.
+
+    Never trusts client claims; only uses payload verified by Google's public keys.
+    """
+    from google.oauth2 import id_token as google_id_token
+    from google.auth.transport import requests as google_requests
+    from google.auth.exceptions import GoogleAuthError
+
+    target_client_id = client_id or settings.GOOGLE_CLIENT_ID
+    if not target_client_id:
+        logger.error("google_auth_client_id_not_configured")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"message": "Google authentication is not configured on this server", "type": "auth_not_configured"},
+        )
+
+    try:
+        id_info = google_id_token.verify_oauth2_token(
+            token,
+            google_requests.Request(),
+            audience=target_client_id,
+        )
+    except (GoogleAuthError, ValueError) as exc:
+        logger.warning("google_token_verification_failed", error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"message": "Invalid, expired, or malformed Google ID token", "type": "invalid_google_token"},
+        ) from exc
+
+    issuer = id_info.get("iss")
+    if issuer not in ("accounts.google.com", "https://accounts.google.com"):
+        logger.warning("google_token_invalid_issuer", issuer=issuer)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"message": "Invalid Google token issuer", "type": "invalid_issuer"},
+        )
+
+    return id_info
