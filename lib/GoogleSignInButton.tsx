@@ -74,6 +74,7 @@ export default function GoogleSignInButton({
 }: GoogleSignInButtonProps) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
+  const hasRenderedRef = useRef(false);
   const [rendered, setRendered] = useState(false);
 
   const clientId =
@@ -113,7 +114,12 @@ export default function GoogleSignInButton({
   );
 
   const renderGoogleButton = useCallback(() => {
-    if (typeof window === "undefined" || !window.google?.accounts?.id || !containerRef.current) {
+    if (
+      typeof window === "undefined" ||
+      !window.google?.accounts?.id ||
+      !containerRef.current ||
+      hasRenderedRef.current
+    ) {
       return;
     }
     try {
@@ -124,7 +130,8 @@ export default function GoogleSignInButton({
         cancel_on_tap_outside: true,
       });
 
-      containerRef.current.innerHTML = "";
+      // Google owns the contents of this mount node. Keep it separate from
+      // React-rendered children so React never reconciles Google's iframe DOM.
       window.google.accounts.id.renderButton(containerRef.current, {
         type: "standard",
         theme: "filled_black",
@@ -134,6 +141,7 @@ export default function GoogleSignInButton({
         logo_alignment: "left",
         width: 375,
       });
+      hasRenderedRef.current = true;
       setTimeout(() => setRendered(true), 0);
     } catch (err) {
       console.error("Google Identity Services renderButton error:", err);
@@ -163,7 +171,8 @@ export default function GoogleSignInButton({
         onLoad={renderGoogleButton}
       />
       <div className={styles.googleContainer}>
-        <div ref={containerRef} className={styles.googleBtnWrapper}>
+        <div className={styles.googleBtnWrapper}>
+          <div ref={containerRef} />
           {!rendered && (
             <button
               type="button"
