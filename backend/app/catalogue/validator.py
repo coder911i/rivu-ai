@@ -37,6 +37,7 @@ def validate_product_records(
 
     for p in products:
         issues: List[ValidationIssue] = []
+        reported_required: set[str] = set()
 
         # Rule 1: Product Name required & non-empty
         name_clean = (p.name or "").strip()
@@ -48,6 +49,7 @@ def validate_product_records(
                 message="Product name is required and cannot be empty",
                 suggested_fix="Enter a descriptive product name",
             ))
+            reported_required.add("name")
 
         # Rule 2: SKU required & uniqueness
         sku_clean = (p.sku or "").strip().upper()
@@ -59,6 +61,7 @@ def validate_product_records(
                 message="SKU is required for catalog identification",
                 suggested_fix="Provide a unique product SKU or part number",
             ))
+            reported_required.add("sku")
         elif sku_counts[sku_clean] > 1:
             issues.append(ValidationIssue(
                 field="sku",
@@ -95,6 +98,24 @@ def validate_product_records(
                 message=f"Invalid numeric price format: '{p.price}'",
                 suggested_fix="Enter a valid decimal number (e.g. 19.99)",
             ))
+            reported_required.add("price")
+
+        # Apply additional required fields from organization target templates.
+        if template:
+            product_values = p.model_dump()
+            for target_field in template.fields:
+                if not target_field.required:
+                    continue
+                mapped = target_field.mapped_to or target_field.name
+                if mapped in reported_required:
+                    continue
+                if mapped.startswith("_"):
+                    continue
+                value = product_values.get(mapped)
+                if mapped.startswith("custom:"):
+                    value = p.custom_attributes.get(mapped.split(":", 1)[1])
+                if value is None or not str(value).strip() or str(value).lower() in {"none", "null"}:
+                    issues.append(ValidationIssue(field=mapped, issue_type="missing_required_field", severity="error", message=f"Required target field '{target_field.name}' is empty", suggested_fix=f"Provide a value for {target_field.name}"))
 
         # Rule 4: Sale price check
         if p.sale_price is not None:

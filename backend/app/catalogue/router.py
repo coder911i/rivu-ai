@@ -63,7 +63,16 @@ async def upload_catalogue(
         raise HTTPException(status_code=400, detail={"message": err.message, "type": "unsupported_format"})
 
     # Read bytes with memory safeguard
-    data = await file.read()
+    data = bytearray()
+    while chunk := await file.read(1024 * 1024):
+        data.extend(chunk)
+        if len(data) > settings.MAX_UPLOAD_SIZE_BYTES:
+            await file.close()
+            raise HTTPException(
+                status_code=413,
+                detail={"message": f"File exceeds the maximum limit of {settings.MAX_UPLOAD_SIZE_MB}MB", "type": "file_too_large"},
+            )
+    data = bytes(data)
     if len(data) > settings.MAX_UPLOAD_SIZE_BYTES:
         raise HTTPException(
             status_code=413,
@@ -81,7 +90,7 @@ async def upload_catalogue(
         raise HTTPException(status_code=400, detail={"message": err.message, "type": "parsing_error"})
     except Exception as exc:
         logger.error("catalogue_parse_failed", filename=filename, error=str(exc))
-        raise HTTPException(status_code=500, detail={"message": f"Failed to parse catalogue file: {str(exc)}", "type": "internal_error"})
+        raise HTTPException(status_code=500, detail={"message": "Failed to parse catalogue file. Check that the file is valid and try again.", "type": "internal_error"})
 
     catalogue_id = f"cat_{uuid.uuid4().hex[:12]}"
     columns = parsed["columns"]
@@ -109,8 +118,10 @@ async def upload_catalogue(
         column_count=parsed["column_count"],
         columns=columns,
         sheet_names=parsed.get("sheet_names", []),
+        selected_sheet=parsed.get("selected_sheet"),
         total_pages=parsed.get("total_pages"),
         sample_records=sample_records,
+        raw_records=parsed["raw_records"],
         suggested_mappings=suggested_mappings,
         available_templates=available_templates,
     )

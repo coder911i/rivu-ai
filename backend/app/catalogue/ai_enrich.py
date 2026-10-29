@@ -1,6 +1,7 @@
 """Optional AI-assisted product enrichment service using existing Groq/AI provider."""
 
 import json
+import re
 from typing import List, Optional
 
 import structlog
@@ -132,9 +133,11 @@ def _generate_rule_based_fallback(p: ProductRecord, types: List[str]) -> AIEnric
     title = p.name.strip() if p.name else f"Product {p.sku}"
     brand_prefix = f"{p.brand} " if p.brand else ""
 
-    desc = p.description or f"{brand_prefix}{title}. Premium quality product engineered for everyday reliability."
+    # Never invent product properties; use only facts already present in the record.
+    desc = p.description or p.short_description
     seo_title = f"{brand_prefix}{title}"[:58]
-    seo_desc = f"Shop {brand_prefix}{title}. Explore specifications, pricing and availability online."[:150]
+    seo_source = p.short_description or p.description or title
+    seo_desc = seo_source[:150] if seo_source else None
 
     # Tag extraction from title
     words = [w.lower() for w in re.split(r"[^a-zA-Z0-9]+", title) if len(w) > 3]
@@ -145,7 +148,7 @@ def _generate_rule_based_fallback(p: ProductRecord, types: List[str]) -> AIEnric
     return AIEnrichmentSuggestion(
         product_id=p.id,
         suggested_description=desc if "description" in types else None,
-        suggested_category=p.category or "General Merchandise" if "category" in types else None,
+        suggested_category=p.category if "category" in types else None,
         suggested_seo_title=seo_title if "seo" in types else None,
         suggested_seo_description=seo_desc if "seo" in types else None,
         suggested_tags=tags if "tags" in types else None,

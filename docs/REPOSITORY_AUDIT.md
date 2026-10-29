@@ -1,159 +1,86 @@
-# Rivu AI — Comprehensive Repository Audit
+# Rivu AI Repository Audit
 
-**Product:** Rivu AI by WaterTing  
-**Repository:** [https://github.com/waterting/rivu-ai](https://github.com/waterting/rivu-ai)  
-**Date:** October 2026  
-**Auditor:** Principal Software & Systems Architect  
-**Branch:** `feature/catalogue-data-entry` (branched from `main`)  
+**Repository:** `waterting/rivu-ai`
+**Audited:** 2026-10-29
+**Checkout:** `main` tracking `origin/main` at audit start; working tree clean.
+**Scope:** application source, tests, database models/migrations, catalogue modules, and deployment configuration.
 
----
+## Executive summary
 
-## 1. Executive Summary
+Rivu is a Next.js 16 / React 19 TypeScript application backed by a FastAPI service. The existing product is an authenticated, organization-scoped data refinery: users upload datasets into projects, inspect profiles and quality, request AI transformation suggestions, preview them, approve execution, and download versioned output artifacts. The catalogue backend was already implemented and mounted at `/api/v1/catalogue`; the main missing piece was an interactive frontend. A new authenticated Catalogue Data Entry workflow now connects to those existing endpoints.
 
-Rivu AI is an AI-native Data Refinery platform developed by WaterTing designed to transform messy, inconsistent business spreadsheets and tabular data into clean, structured, and validated datasets.
+The application persists user, organization, membership, project, dataset, profile, quality, job, and transformation records in SQLAlchemy/PostgreSQL. Raw/refined dataset objects use the configured S3-compatible storage. Catalogue upload/mapping sessions and custom catalogue templates are currently stateless/in-memory: they are not durable across requests when requests reach different workers (for templates) or across browser sessions (for source records). Catalogue source rows are returned to the browser and sent back for mapping, validation, and export.
 
-The application is structured as a decoupled full-stack platform:
-- **Frontend:** Next.js 16 (React 19, TypeScript, Vanilla CSS Modules and custom design system, Lucide icons).
-- **Backend:** FastAPI (Python 3.13), async SQLAlchemy 2.0 with asyncpg/psycopg2, Pydantic v2, Polars for high-throughput vectorized data processing, Pandas + openpyxl/xlrd for Excel parsing, ReportLab for branded PDF reports, and Groq SDK (`openai/gpt-oss-120b` or `llama-3.3-70b-versatile`) for AI planning and advisory reports.
-- **Storage:** S3-compatible object storage via `aioboto3` (MinIO in development, AWS S3 / Backblaze B2 in production).
-- **Authentication & Security:** JWT-based access/refresh token system with server-side token version revocation, PBKDF2-SHA256 password hashing, tenant/organization membership checks on every endpoint, strict CSP and security headers.
-- **Background Processing:** In-process task runner (`app.workers.runner`) monitoring a `jobs` table with state transitions (`queued`, `processing`, `profiling`, `completed`, `failed`).
+## Frontend routes and actions
 
-### Baseline Findings & Quality Status
-- **Python Test Suite:** **89 tests passing** out of 89 (`pytest` in `backend/tests/`).
-- **TypeScript Typecheck:** **0 errors** (`npx tsc --noEmit` exits with code 0).
-- **Frontend Production Build:** **Successful** (`next build` compiled all 10 routes cleanly with Turbopack).
-- **Pre-existing Frontend Lint Warning/Error:** In `app/services/page.tsx:49:5`, calling `setSignedIn(Boolean(token))` directly inside a `useEffect` triggers React 19's `react-hooks/set-state-in-effect` error. This must be resolved.
-- **Missing Ingestion Capabilities:** While `.csv`, `.xlsx`, `.xls`, `.json`, and `.parquet` are supported by `parser.py`, `.pdf` catalogue parsing is not yet implemented.
-- **Feature Gap:** The "Catalogue to Product Data Entry" solution is referenced in marketing concepts (`app/page.tsx`, `app/our-services/page.tsx`) but does not yet exist as an interactive, fully integrated workspace with field mapping, editable table, validation engine, dynamic templates, and multi-format product exports.
+| Route | Main work | Backend connections / status |
+|---|---|---|
+| `/` | Public Rivu landing page, navigation and solution explorer | Static/interactive content; no data API calls |
+| `/our-services` | Industry solutions, engagement plans, consultation form | Consultation form opens a prefilled WhatsApp URL; no silent form submission. E-commerce now links to `/our-solutions/catalogue-data-entry` |
+| `/our-solutions/catalogue-data-entry` | Upload catalogue, map source columns, edit/search/filter products, inspect row issues, validate, choose template, preview and download | `/catalogue/upload`, `/catalogue/map`, `/catalogue/validate`, `/catalogue/templates`, `/catalogue/export/preview`, `/catalogue/export`; requires an access token |
+| `/services` | Existing Data Studio upload, profile, AI plan, preview, approve/execute, artifact downloads | `/projects/`, `/datasets/projects/{id}/upload`, dataset profile/quality/jobs, AI plan and transform routes |
+| `/dashboard` | Workspace overview, project/dataset management and reports | Project, dataset, and report API routes |
+| `/dashboard/dataset/[id]` | Dataset profile, quality, row explorer, transformation and exports | Dataset intelligence and transformation API routes |
+| `/login`, `/signup`, `/reset-password`, `/verify-email` | Authentication and account recovery | `/auth/*` routes |
 
----
+The catalogue page keeps original uploaded rows in browser state for its session. It displays the source row beside mapped product values. The table currently renders at most 250 matches at a time and asks users to narrow searches for later rows; it does not use a virtualized grid.
 
-## 2. Repository Structure
+## Backend routes and business logic
 
-```
-c:\Users\tanis\rivu-ai
-├── app/                              # Next.js App Router (Frontend)
-│   ├── dashboard/                    # Main user workspace
-│   │   ├── dataset/[id]/             # Dataset inspection & transformation view
-│   │   │   ├── dataset.module.css
-│   │   │   └── page.tsx
-│   │   ├── dashboard.module.css
-│   │   └── page.tsx                  # Dashboard overview, projects, datasets
-│   ├── login/                        # Authentication login screen
-│   ├── signup/                       # User registration screen
-│   ├── reset-password/               # Password recovery
-│   ├── verify-email/                 # Email verification handler
-│   ├── our-services/                 # Public Business Solutions & Consultation page
-│   ├── services/                     # Data Studio / Refinery live interface
-│   ├── globals.css                   # Global theme tokens, typography, dark mode
-│   ├── layout.tsx                    # Root layout with Inter font
-│   └── page.tsx                      # Landing page with interactive engine preview
-├── backend/                          # FastAPI Backend Application
-│   ├── alembic/                      # Database migrations
-│   │   └── versions/                 # 6 migration scripts (initial schema to align types)
-│   ├── app/
-│   │   ├── ai/                       # AI providers (Groq adapter, planner, factory)
-│   │   ├── api/v1/                   # FastAPI endpoints (auth, projects, datasets, insights, reports, transformations)
-│   │   ├── cleaning/                 # Deterministic Polars transformation engine
-│   │   ├── core/                     # Config, Database (AsyncEngine), Security (JWT), Storage (S3), Logging
-│   │   ├── ingestion/                # Parser (CSV, XLSX, XLS, JSON, Parquet)
-│   │   ├── models/                   # SQLAlchemy 2.0 mapped models (User, Org, Project, DataSource, DatasetVersion, etc.)
-│   │   ├── profiler/                 # Polars-based dataset profiling & quality calculation
-│   │   ├── schemas/                  # Pydantic v2 request/response models
-│   │   ├── workers/                  # Background job processor & runner
-│   │   └── main.py                   # FastAPI entrypoint, CORS, CSP middleware, error handlers
-│   ├── tests/                        # 89 pytest unit and integration tests
-│   ├── requirements.txt              # Pinned Python dependencies
-│   ├── Dockerfile                    # Containerization for API and worker
-│   └── alembic.ini                   # Migration configuration
-├── docs/                             # Architecture & operations documentation
-├── lib/                              # Shared frontend utilities & UI components
-│   ├── api.ts                        # authFetch, API configuration, error parser
-│   ├── BrandLogo.tsx                 # SVG/CSS Rivu mark & typography
-│   ├── CursorField.tsx               # Ambient mouse follower
-│   └── ProcessingRail.tsx            # Animated progress rail
-├── e2e/                              # Playwright tests
-├── package.json                      # Next.js 16, React 19, TypeScript
-├── render.yaml                       # Render deployment manifest (API + Worker)
-├── vercel.json                       # Vercel deployment manifest (Frontend)
-└── docker-compose.yml                # Local services (Postgres, MinIO, API)
-```
+FastAPI registers `app.api.v1.router.api_router` under `/api/v1`; this router includes auth, projects, datasets, insights, reports, transformations, and catalogue.
 
----
+Catalogue endpoints in `backend/app/catalogue/router.py`:
 
-## 3. Frontend Route Inventory
+| Method and route | Behavior |
+|---|---|
+| `POST /catalogue/upload` | Authenticated catalogue parsing, column/sample inference, available-template response and full parsed rows for the client mapping session |
+| `POST /catalogue/map` | Applies source mappings and deterministic type/format conversion, then validates records |
+| `POST /catalogue/validate` | Revalidates submitted product rows after edits or target-template changes |
+| `POST /catalogue/enrich` | Advisory AI enrichment using the configured Groq provider; now does not invent missing descriptions or categories in local fallback mode |
+| `GET /catalogue/templates` | Built-in plus process-local organization custom templates |
+| `POST /catalogue/templates` | Saves a process-local custom template |
+| `DELETE /catalogue/templates/{template_id}` | Deletes a process-local custom template; built-ins are protected |
+| `POST /catalogue/export/preview` | Previews template columns and sample output rows |
+| `POST /catalogue/export` | Produces CSV, XLSX or JSON bytes |
 
-| Route | Purpose | Major Components | Data Sources | User Actions | Backend Dependencies | Auth Guard | Status |
-|---|---|---|---|---|---|---|---|
-| `/` | Landing page & brand story | Logo, Hero, EngineArt, ServiceGrid, SolutionLab | Static data, dynamic typing effect | Explore refinery stages, navigate to services/login | None | Public | Verified Working |
-| `/our-services` | Business solutions, industries & consultation | IndustryGrid, Toolkit, Plans, CaseStudies, ConsultationForm | Form state, WhatsApp URI generator | Select industry/plan, fill consultation inquiry | External WhatsApp API | Public | Verified Working |
-| `/services` | Data Studio: Upload, AI plan, preview, transform | Sidebar, UploadGrid, PipelineSteps, OperationsList, PreviewJson | Projects API, Upload API, AI plan API | Upload file, generate plan, preview, approve & execute | `/api/v1/projects`, `/api/v1/datasets/...` | Authenticated (Token redirect) | Partial (React 19 lint error) |
-| `/dashboard` | Workspace overview: projects, datasets, live intelligence | Sidebar, Kpis, ProjectPane, DataPane, IntelligenceCard, ReportStrip | Projects API, Datasets API, Reports API | Create project, upload file, inspect report, download PDF | `/api/v1/projects`, `/api/v1/reports` | Authenticated | Verified Working |
-| `/dashboard/dataset/[id]` | Deep inspection: table, column profiles, quality, refinement | ColumnGrid, QualityBars, TableViewer, Search, Sort, Pager, ExportButtons | Profile API, Quality API, Table API, Transform API | Paginate/search rows, generate plan, preview, export | `/api/v1/datasets/[id]/...` | Authenticated | Verified Working |
-| `/login` | User login | LoginForm, BrandLogo, OrbitVisual | Local form state | Enter email/password, sign in, store tokens | `/api/v1/auth/login` | Public | Verified Working |
-| `/signup` | User registration | SignupForm, BrandLogo | Local form state | Register account, create default workspace | `/api/v1/auth/signup` | Public | Verified Working |
-| `/reset-password` | Password recovery | ResetForm | URL token, form state | Request reset link, set new password | `/api/v1/auth/password-reset` | Public | Verified Working |
-| `/verify-email` | Email verification | VerificationStatus | URL token | Verify email token | `/api/v1/auth/verify-email` | Public | Verified Working |
+The catalogue package contains separate parser, mapping, validator, template, exporter, and enrichment modules. File parsing uses pandas/openpyxl/xlrd, pypdf text extraction, and existing CSV encoding/delimiter helpers. Scanned PDFs fail with an explicit no-extractable-text validation message; no OCR integration is configured. Mapping uses canonical field synonyms, fuzzy matching, value heuristics, and deterministic coercion. Validation covers required name/SKU, duplicate SKU, price/sale price, inventory, URLs, and template-required fields. Product attributes not mapped to canonical fields are retained in custom attributes.
 
----
+The general ingestion parser additionally supports Parquet, but catalogue product import does not. The catalogue UI accepts CSV, XLSX, XLS, JSON and PDF. Shopify/WooCommerce template-shaped exports exist; these are file exports only, not native storefront integrations.
 
-## 4. Backend API Inventory
+## Frontend action tracing and gaps
 
-| Method | Path | Handler | Input Schema | Output Schema | Auth | Tenant Isolation | Status |
-|---|---|---|---|---|---|---|---|
-| `POST` | `/api/v1/auth/signup` | `auth.signup` | `SignupRequest` | `TokenResponse` / Dict | None | Creates new Org | Verified |
-| `POST` | `/api/v1/auth/login` | `auth.login` | `LoginRequest` | `TokenResponse` | None | Scoped to active Org | Verified |
-| `POST` | `/api/v1/auth/refresh` | `auth.refresh_token` | `RefreshRequest` | `TokenResponse` | Refresh Token | Validates TokenVersion | Verified |
-| `GET` | `/api/v1/auth/me` | `auth.me` | None | `UserResponse` | Bearer Token | Scoped to User | Verified |
-| `POST` | `/api/v1/auth/logout` | `auth.logout` | None | Dict | Bearer Token | Increments TokenVersion | Verified |
-| `POST` | `/api/v1/projects/` | `projects.create_project` | `ProjectCreate` | `ProjectResponse` | Bearer (Editor+) | Scoped to Org | Verified |
-| `GET` | `/api/v1/projects/` | `projects.list_projects` | Query params | `List[ProjectResponse]` | Bearer | Scoped to Org | Verified |
-| `GET` | `/api/v1/projects/{id}` | `projects.get_project` | Project ID | `ProjectDetailResponse` | Bearer | Scoped to Org | Verified |
-| `POST` | `/api/v1/datasets/projects/{id}/upload` | `datasets.upload_dataset` | Multipart Form | 202 Accepted | Bearer (Editor+) | Scoped to Org & Project | Verified |
-| `GET` | `/api/v1/datasets/{id}/profile` | `insights.profile` | Dataset ID | `DataProfileResponse` | Bearer | Scoped to Org | Verified |
-| `GET` | `/api/v1/datasets/{id}/quality` | `insights.quality` | Dataset ID | `QualityReportResponse` | Bearer | Scoped to Org | Verified |
-| `GET` | `/api/v1/datasets/{id}/jobs` | `insights.jobs` | Dataset ID | Job status list | Bearer | Scoped to Org | Verified |
-| `POST` | `/api/v1/datasets/{id}/ai-plan` | `insights.create_ai_plan`| Dataset ID | `PlanResponse` | Bearer (Editor+) | Scoped to Org | Verified |
-| `POST` | `/api/v1/datasets/{id}/transform/preview` | `transformations.preview_plan` | `ExecutePlanRequest` | Preview JSON | Bearer (Editor+) | Scoped to Org | Verified |
-| `POST` | `/api/v1/datasets/{id}/transform/approve` | `transformations.approve_plan` | Plan ID | Approval status | Bearer (Editor+) | Scoped to Org | Verified |
-| `POST` | `/api/v1/datasets/{id}/transform/execute` | `transformations.execute_plan` | Plan ID | Artifact URLs | Bearer (Editor+) | Scoped to Org | Verified |
-| `GET` | `/api/v1/reports/{id}/pdf` | `reports.report_pdf` | Dataset ID | PDF Stream | Bearer | Scoped to Org | Verified |
-| `GET` | `/api/v1/reports/{id}/dashboard` | `reports.dashboard` | Dataset ID | Intelligence JSON | Bearer | Scoped to Org | Verified |
+- Login/signup store access and refresh tokens; `lib/api.ts` adds bearer auth, retries after token refresh, and converts network/API failures into actionable errors.
+- Data Studio actions are connected to real API routes and preserve the approve-before-execute refinement workflow.
+- Catalogue upload previously returned only ten sample rows, making complete mapping impossible. Upload now returns all parsed records, and the catalogue UI maps those rows instead of the sample.
+- Mapping previously substituted synthetic product names and SKUs for missing source values. Those substitutions are removed so required-field validation can report missing values.
+- The catalogue table edits canonical product fields locally and sends all records to the real validation endpoint on explicit revalidation. The export preview excludes rows classified as errors; warning/valid rows are included.
+- Custom target-template files can be parsed and their headers saved as an organization-associated custom template. Current template storage is process-local, so this is a convenience for the current backend process, not durable configuration.
+- Existing `/services` accepts CSV/JSON/XLSX/XLS/Parquet; it is the data refinery and remains distinct from catalogue-specific PDF support.
+- No native Shopify, WooCommerce, ERP API, OCR, saved mapping recipe, or durable catalogue job/session integration was found.
 
----
+## Data, authentication, tenancy, and security
 
-## 5. Database Architecture & Models
+- SQLAlchemy models are in `backend/app/models/`; schema changes are maintained in `backend/alembic/versions/`, with `db/schema.sql` as reference material.
+- Membership roles include owner, admin, editor, and viewer. Catalogue upload, mapping, validation, and enrichment use `require_org_role` for owner/admin/editor. Template listing and export routes require an authenticated user and use their active organization for custom-template lookup.
+- Catalogue APIs do not persist product records. Submitted rows are caller-provided request data; this is a transient workflow, not an organization database catalogue.
+- Catalogue upload validates extension, rejects empty files, and reads in bounded chunks up to configured `MAX_UPLOAD_SIZE_MB` (default 500 MB). Parsing still requires the complete byte buffer and dataframe in memory; returning all rows as JSON also makes large catalogues memory- and bandwidth-intensive. A streaming/persistent catalogue session is needed for genuinely large inputs.
+- Parser failures represented as validation errors return 400. Unexpected catalogue parser failures are logged and return a generic message instead of echoing exception details. Existing global development error behavior still returns detail when `DEBUG` is enabled.
+- CSV/XLSX/JSON export is generated in memory. There is no persistent catalogue export artifact or background job.
+- `backend/app/core/security.py` implements JWT/password and organization access; production security checks require non-default JWT and S3 configuration, TLS, disabled debug, and disabled automatic schema creation.
 
-The database uses PostgreSQL accessed through SQLAlchemy 2.0 with asyncpg:
-1. **`users`**: User identity, hashed passwords (PBKDF2-SHA256), email verification tokens, password reset tokens, `token_version` for session invalidation.
-2. **`organizations`**: Multi-tenant isolation container with `owner_id`, `plan`, and JSONB `settings`.
-3. **`memberships`**: Links `users` to `organizations` with roles: `owner`, `admin`, `editor`, `viewer`.
-4. **`projects`**: Categorizes data assets within an organization.
-5. **`data_sources`**: Ingested datasets with metadata, `file_format`, `status`, and `current_version`.
-6. **`dataset_versions`**: Immutable versions of a dataset. Version 1 is the raw uploaded file; subsequent versions correspond to approved transformations.
-7. **`data_profiles` & `column_profiles`**: Deep column-level and dataset-level profiling stats (null counts, uniqueness, min/max/mean, detected semantic types).
-8. **`quality_reports` & `quality_issues`**: Multi-dimensional quality metrics (completeness, validity, consistency, uniqueness, integrity) and granular issues.
-9. **`transformation_plans` & `transformation_runs`**: Advisory plans created by AI and deterministic execution runs with audit logs.
-10. **`jobs` & `job_logs`**: Async queue execution tracking.
+## Environment and deployment
 
----
+Frontend configuration: `NEXT_PUBLIC_API_URL` (defaults to `http://127.0.0.1:8000/api/v1` in `lib/api.ts`). Next.js deployment is described in `vercel.json`.
 
-## 6. AI & Data Processing Pipeline Audit
+Backend variables are documented in `backend/.env.example` (root `.env.example` is also present): database URLs, JWT configuration, `DEFAULT_AI_PROVIDER=groq`, `GROQ_API_KEY`, `GROQ_MODEL`, S3 endpoint/credentials/bucket/region/TLS, allowed origins, debug/logging, upload size, and worker/profile limits. Render API/worker setup is in `render.yaml`; local dependencies are in `docker-compose.yml`; backend image setup is in `backend/Dockerfile`.
 
-1. **AI Provider:** Configured through `app/ai/factory.py` returning `GroqClient` with `openai/gpt-oss-120b` (or `llama-3.3-70b-versatile`). It uses structured prompting and JSON completion with fallback to default structures.
-2. **Deterministic Processing Boundary:** The LLM is strictly advisory. It produces a `TransformationPlan` (list of operations with parameters and confidence). The deterministic `TransformationEngine` in `app/cleaning/engine.py` executes these operations with Polars without invoking the LLM during execution.
-3. **Vectorized Engine:** Polars 1.17 provides sub-second operations for 100K+ rows.
-4. **Export Artifacts:** CSV, XLSX, JSON, and PDF streaming.
+## Tests, broken imports, and code-health findings
 
----
-
-## 7. Gaps & Prioritized Action Plan
-
-| Gap ID | Area | Description | Severity | Remediation |
-|---|---|---|---|---|
-| GAP-01 | Frontend | `app/services/page.tsx:49:5` triggers `react-hooks/set-state-in-effect` during `npm run lint`. | Medium | Initialize `signedIn` state lazily or synchronize without synchronous setState inside `useEffect`. |
-| GAP-02 | Ingestion | PDF files cannot currently be parsed into structured records. | High | Integrate `pypdf` with table/text extraction and structure inference. |
-| GAP-03 | Feature | Missing "Catalogue to Product Data Entry" solution in navigation and application. | Critical | Build dedicated route `/our-solutions/catalogue-data-entry` reachable from `/our-services` and `/` with full workspace. |
-| GAP-04 | Backend | No endpoints for product catalogue field mapping, product schema validation, and template-based e-commerce exports. | Critical | Implement `/api/v1/catalogue` endpoints for upload, schema detection, mapping, product CRUD, validation, template management, and export. |
-| GAP-05 | Templates | No pre-configured e-commerce/ERP target schemas (Shopify, WooCommerce, ERP Master, Custom). | High | Implement dynamic template model and default industry templates. |
+- Existing Python coverage includes authentication, workspace security, ingestion formats, catalogue parser/mapping/validation/templates/export, migrations, cleaning, and launch gate. The baseline at audit start had 102 passing tests.
+- Existing Playwright coverage has public smoke coverage plus an end-to-end data-refinery flow. The latter skips unless `E2E_API_URL` is configured and a test backend/database/storage are available.
+- `npm run lint` reports three existing warnings (dataset page hook dependency, dashboard internal `location.href`, anonymous load-test export); no errors.
+- Current catalogue modules compile and their routes are registered. Prior documentation incorrectly claimed the catalogue backend and PDF parser were missing; the codebase already contains both (text PDF extraction only).
+- Existing mapping conversion of unparseable numeric strings can coerce them to zero; zero price is a warning and can therefore lose the distinction between invalid input and a true zero. This remains a validation limitation.
+- Custom templates are process-local and can disappear on worker restart or route to another worker. A persistent organization-scoped store is needed for reliable reuse.
+- The full-row JSON upload response is suitable for moderate catalogues only. Limits on total record count/request size and a durable streaming or staged catalogue session should be considered before production use at large scale.
+- No new parser dependency or database was introduced for this implementation.

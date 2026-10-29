@@ -303,12 +303,6 @@ def apply_field_mappings(
             else:
                 prod_data["custom_attributes"][target] = transformed_val
 
-        # Guarantee string defaults for required fields if missing
-        if "name" not in prod_data or not prod_data["name"]:
-            prod_data["name"] = f"Product #{row_idx + 1}"
-        if "sku" not in prod_data or not prod_data["sku"]:
-            prod_data["sku"] = f"SKU-{row_idx + 1:04d}"
-
         product = ProductRecord(**prod_data)
         products.append(product)
 

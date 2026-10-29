@@ -9,4 +9,9 @@ test("homepage and services pages render and navigation works", async ({ page })
   await page.getByRole("button", { name: "Our Services" }).click();
   await expect(page).toHaveURL(/\/our-services$/);
   await expect(page.getByRole("heading", { name: /AI & data solutions/i })).toBeVisible();
+  const catalogueLink = page.getByRole("link", { name: /Open Catalogue Data Entry/ });
+  await expect(catalogueLink).toBeVisible();
+  await catalogueLink.click();
+  await expect(page).toHaveURL(/\/our-solutions\/catalogue-data-entry$/);
+  await expect(page.getByRole("heading", { name: /Sign in to prepare a catalogue/i })).toBeVisible();
 });

@@ -175,6 +175,37 @@ def test_apply_field_mappings():
     assert products[0].custom_attributes.get("Material") == "Mesh"
 
 
+def test_missing_identifiers_are_not_fabricated():
+    products = apply_field_mappings([{"Supplier note": "A real source fact"}], [])
+    assert products[0].name == ""
+    assert products[0].sku == ""
+    validated, summary = validate_product_records(products)
+    assert summary.error_records == 1
+    assert {issue.field for issue in validated[0].validation_issues} >= {"name", "sku"}
+
+
+def test_ai_fallback_does_not_invent_product_facts():
+    from app.catalogue.ai_enrich import _generate_rule_based_fallback
+
+    product = ProductRecord(id="p1", name="Steel Thermos", sku="TH-1", price=10)
+    suggestion = _generate_rule_based_fallback(product, ["description", "category", "seo", "tags"])
+    assert suggestion.suggested_description is None
+    assert suggestion.suggested_category is None
+    assert suggestion.suggested_seo_description == "Steel Thermos"
+
+
+def test_custom_template_required_fields_are_validated():
+    template = ProductTemplate(
+        id="custom_required", name="Required", description="Required field test",
+        fields=[TemplateField(name="WarrantyCode", label="Warranty", required=True, mapped_to="custom:WarrantyCode")],
+    )
+    products, summary = validate_product_records(
+        [ProductRecord(id="p1", name="Widget", sku="W-1", price=10)], template,
+    )
+    assert summary.error_records == 1
+    assert any(issue.field == "custom:WarrantyCode" for issue in products[0].validation_issues)
+
+
 # ── Test 3: Validation Engine ────────────────────────────────────
 
 def test_validator_detects_errors_and_duplicates():

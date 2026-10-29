@@ -90,8 +90,11 @@ class IngestionUploadResponse(BaseModel):
     column_count: int
     columns: List[str]
     sheet_names: List[str] = Field(default_factory=list)
+    selected_sheet: Optional[str] = None
     total_pages: Optional[int] = None
     sample_records: List[Dict[str, Any]] = Field(default_factory=list)
+    # Kept client-side for review and mapping; upload is a stateless catalogue session.
+    raw_records: List[Dict[str, Any]] = Field(default_factory=list)
     suggested_mappings: List[FieldMapping] = Field(default_factory=list)
     available_templates: List[ProductTemplate] = Field(default_factory=list)
 

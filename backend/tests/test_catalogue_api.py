@@ -70,25 +70,24 @@ async def test_catalogue_upload_and_mapping_pipeline(monkeypatch):
             assert any(t["id"] == "standard_ecommerce" for t in templates)
 
             # 2. Upload CSV catalogue
-            csv_content = (
-                "Part Number,Product Name,MSRP,Stock,Brand\n"
-                "WDG-101,Titanium Mechanical Pencil 0.5mm,$45.00,100,WaterTing\n"
-                "WDG-102,Refill Lead HB 0.5mm,$5.50,500,WaterTing\n"
-            ).encode("utf-8")
+            csv_content = ("Part Number,Product Name,MSRP,Stock,Brand\n" + "\n".join(
+                f"WDG-{i:03d},Product {i},$45.00,100,WaterTing" for i in range(1, 13)
+            ) + "\n").encode("utf-8")
 
             files = {"file": ("catalogue.csv", io.BytesIO(csv_content), "text/csv")}
             up_res = await client.post("/api/v1/catalogue/upload", files=files)
             assert up_res.status_code == 200
             upload_data = up_res.json()
 
-            assert upload_data["row_count"] == 2
+            assert upload_data["row_count"] == 12
+            assert len(upload_data["raw_records"]) == upload_data["row_count"]
             assert "Part Number" in upload_data["columns"]
             suggested = upload_data["suggested_mappings"]
             assert len(suggested) >= 4
 
             # 3. Apply field mappings
             map_payload = {
-                "raw_records": upload_data["sample_records"],
+                "raw_records": upload_data["raw_records"],
                 "mappings": suggested,
                 "template_id": "shopify",
             }
@@ -96,10 +95,10 @@ async def test_catalogue_upload_and_mapping_pipeline(monkeypatch):
             assert map_res.status_code == 200
             map_data = map_res.json()
             products = map_data["products"]
-            assert len(products) == 2
-            assert products[0]["sku"] == "WDG-101"
+            assert len(products) == 12
+            assert products[0]["sku"] == "WDG-001"
             assert products[0]["price"] == 45.0
-            assert map_data["validation_summary"]["valid_records"] == 2
+            assert map_data["validation_summary"]["valid_records"] == 12
 
             # 4. Preview Export
             exp_preview_res = await client.post(
@@ -113,7 +112,7 @@ async def test_catalogue_upload_and_mapping_pipeline(monkeypatch):
             assert exp_preview_res.status_code == 200
             prev_data = exp_preview_res.json()
             assert "Handle" in prev_data["output_columns"]
-            assert prev_data["total_records"] == 2
+            assert prev_data["total_records"] == 12
 
             # 5. Export XLSX file
             exp_res = await client.post(
@@ -139,7 +138,8 @@ async def test_catalogue_upload_and_mapping_pipeline(monkeypatch):
             )
             assert exp_csv_res.status_code == 200
             assert "text/csv" in exp_csv_res.headers["content-type"]
-            assert "WDG-101" in exp_csv_res.text
+            assert "WDG-001" in exp_csv_res.text
+            assert "WDG-012" in exp_csv_res.text
     finally:
         app.dependency_overrides.pop(get_current_user, None)
         app.dependency_overrides.pop(require_org_role, None)
