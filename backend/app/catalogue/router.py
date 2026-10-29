@@ -10,6 +10,10 @@ from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.catalogue.ai_enrich import enrich_products_ai
+from app.catalogue.auth import get_current_catalogue_user, require_catalogue_role
+from app.catalogue.auth_db import get_catalogue_session
+from app.catalogue.auth_models import CatalogueAccount, CatalogueSessionData, CatalogueSavedTemplate
+from app.catalogue.auth_router import router as catalogue_auth_router
 from app.catalogue.exporter import export_catalogue, generate_export_preview
 from app.catalogue.mapping import apply_field_mappings, infer_field_mappings
 from app.catalogue.models import (
@@ -33,24 +37,44 @@ from app.catalogue.templates import (
 )
 from app.catalogue.validator import validate_product_records
 from app.core.config import settings
-from app.core.database import get_session
 from app.core.exceptions import ValidationError
-from app.core.security import get_current_user, require_org_role
-from app.models.user import User
+from sqlalchemy import delete, select
 
 router = APIRouter()
+router.include_router(catalogue_auth_router, prefix="/auth", tags=["Catalogue Authentication"])
 logger = structlog.get_logger(__name__)
+
+
+async def _owned_catalogue_session(db: AsyncSession, catalogue_id: str, workspace_id) -> CatalogueSessionData:
+    record = (await db.execute(select(CatalogueSessionData).where(
+        CatalogueSessionData.id == catalogue_id,
+        CatalogueSessionData.workspace_id == workspace_id,
+    ))).scalar_one_or_none()
+    if record is None:
+        raise HTTPException(status_code=404, detail={"message": "Catalogue session not found in this workspace", "type": "not_found"})
+    return record
+
+
+async def _get_template(db: AsyncSession, template_id: str, workspace_id):
+    built_in = get_template_by_id(template_id)
+    if built_in:
+        return built_in
+    saved = (await db.execute(select(CatalogueSavedTemplate).where(
+        CatalogueSavedTemplate.workspace_id == workspace_id,
+        CatalogueSavedTemplate.template_id == template_id,
+    ))).scalar_one_or_none()
+    return ProductTemplate.model_validate(saved.payload) if saved else None
 
 
 @router.post("/upload", response_model=IngestionUploadResponse, status_code=status.HTTP_200_OK)
 async def upload_catalogue(
     file: UploadFile = File(...),
     sheet_name: Optional[str] = Form(None),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_session),
+    current_user: CatalogueAccount = Depends(get_current_catalogue_user),
+    db: AsyncSession = Depends(get_catalogue_session),
 ):
     """Upload and inspect a supplier catalogue file (.pdf, .xlsx, .xls, .csv, .json)."""
-    membership = await require_org_role(current_user, db, {"owner", "admin", "editor"})
+    membership = await require_catalogue_role(current_user, db, {"owner", "admin", "editor"})
     org_id = str(membership.organization_id)
 
     filename = file.filename or "catalogue"
@@ -98,7 +122,16 @@ async def upload_catalogue(
 
     # Compute intelligent field mapping suggestions
     suggested_mappings = infer_field_mappings(columns, sample_records)
-    available_templates = get_all_templates(org_id=org_id)
+    custom = await db.execute(select(CatalogueSavedTemplate).where(CatalogueSavedTemplate.workspace_id == membership.organization_id))
+    available_templates = get_all_templates() + [ProductTemplate.model_validate(item.payload) for item in custom.scalars().all()]
+    db.add(CatalogueSessionData(
+        id=catalogue_id,
+        workspace_id=membership.organization_id,
+        original_filename=filename[:500],
+        file_format=parsed["file_format"],
+        row_count=parsed["row_count"],
+        raw_records=parsed["raw_records"],
+    ))
 
     logger.info(
         "catalogue_uploaded",
@@ -130,16 +163,21 @@ async def upload_catalogue(
 @router.post("/map", response_model=ApplyMappingResponse, status_code=status.HTTP_200_OK)
 async def map_catalogue_records(
     body: ApplyMappingRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_session),
+    current_user: CatalogueAccount = Depends(get_current_catalogue_user),
+    db: AsyncSession = Depends(get_catalogue_session),
 ):
     """Apply field mappings and deterministic normalization rules to raw records."""
-    membership = await require_org_role(current_user, db, {"owner", "admin", "editor"})
+    membership = await require_catalogue_role(current_user, db, {"owner", "admin", "editor"})
     org_id = str(membership.organization_id)
 
-    template = get_template_by_id(body.template_id or "standard_ecommerce", org_id=org_id)
-    products = apply_field_mappings(body.raw_records, body.mappings)
+    record = await _owned_catalogue_session(db, body.catalogue_id, membership.organization_id) if body.catalogue_id else None
+    template = await _get_template(db, body.template_id or "standard_ecommerce", membership.organization_id)
+    products = apply_field_mappings(record.raw_records if record else body.raw_records, body.mappings)
     validated_products, summary = validate_product_records(products, template)
+    if record:
+        record.mappings = [mapping.model_dump(mode="json") for mapping in body.mappings]
+        record.products = [product.model_dump(mode="json") for product in validated_products]
+        record.template_id = body.template_id or "standard_ecommerce"
 
     return ApplyMappingResponse(
         products=validated_products,
@@ -150,15 +188,19 @@ async def map_catalogue_records(
 @router.post("/validate", response_model=ApplyMappingResponse, status_code=status.HTTP_200_OK)
 async def validate_catalogue_products(
     body: ValidateProductsRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_session),
+    current_user: CatalogueAccount = Depends(get_current_catalogue_user),
+    db: AsyncSession = Depends(get_catalogue_session),
 ):
     """Re-validate products after manual edits or template changes."""
-    membership = await require_org_role(current_user, db, {"owner", "admin", "editor"})
+    membership = await require_catalogue_role(current_user, db, {"owner", "admin", "editor"})
     org_id = str(membership.organization_id)
 
-    template = get_template_by_id(body.template_id or "standard_ecommerce", org_id=org_id)
+    template = await _get_template(db, body.template_id or "standard_ecommerce", membership.organization_id)
     validated_products, summary = validate_product_records(body.products, template)
+    if body.catalogue_id:
+        record = await _owned_catalogue_session(db, body.catalogue_id, membership.organization_id)
+        record.products = [product.model_dump(mode="json") for product in validated_products]
+        record.template_id = body.template_id or "standard_ecommerce"
 
     return ApplyMappingResponse(
         products=validated_products,
@@ -169,11 +211,11 @@ async def validate_catalogue_products(
 @router.post("/enrich", response_model=AIEnrichmentResponse, status_code=status.HTTP_200_OK)
 async def enrich_catalogue_products(
     body: AIEnrichmentRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_session),
+    current_user: CatalogueAccount = Depends(get_current_catalogue_user),
+    db: AsyncSession = Depends(get_catalogue_session),
 ):
     """Generate advisory AI enrichments (descriptions, categories, SEO, tags) for products."""
-    await require_org_role(current_user, db, {"owner", "admin", "editor"})
+    await require_catalogue_role(current_user, db, {"owner", "admin", "editor"})
 
     result = await enrich_products_ai(body.products, body.enrichment_types)
     return result
@@ -181,43 +223,56 @@ async def enrich_catalogue_products(
 
 @router.get("/templates", response_model=List[ProductTemplate], status_code=status.HTTP_200_OK)
 async def list_templates(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_session),
+    current_user: CatalogueAccount = Depends(get_current_catalogue_user),
+    db: AsyncSession = Depends(get_catalogue_session),
 ):
     """List standard and organization-custom product export templates."""
-    org_id = str(getattr(current_user, "active_org_id", "default"))
-    return get_all_templates(org_id=org_id)
+    workspace_id = current_user.active_workspace_id
+    custom = await db.execute(select(CatalogueSavedTemplate).where(CatalogueSavedTemplate.workspace_id == workspace_id))
+    return get_all_templates() + [ProductTemplate.model_validate(item.payload) for item in custom.scalars().all()]
 
 
 @router.post("/templates", response_model=ProductTemplate, status_code=status.HTTP_201_CREATED)
 async def create_custom_template(
     body: ProductTemplate,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_session),
+    current_user: CatalogueAccount = Depends(get_current_catalogue_user),
+    db: AsyncSession = Depends(get_catalogue_session),
 ):
     """Save or update a custom export template for the organization."""
-    membership = await require_org_role(current_user, db, {"owner", "admin", "editor"})
+    membership = await require_catalogue_role(current_user, db, {"owner", "admin", "editor"})
     org_id = str(membership.organization_id)
 
     saved = save_custom_template(org_id, body)
+    existing = (await db.execute(select(CatalogueSavedTemplate).where(
+        CatalogueSavedTemplate.workspace_id == membership.organization_id,
+        CatalogueSavedTemplate.template_id == saved.id,
+    ))).scalar_one_or_none()
+    if existing:
+        existing.payload = saved.model_dump(mode="json")
+    else:
+        db.add(CatalogueSavedTemplate(workspace_id=membership.organization_id, template_id=saved.id, payload=saved.model_dump(mode="json")))
     return saved
 
 
 @router.delete("/templates/{template_id}", status_code=status.HTTP_200_OK)
 async def delete_template(
     template_id: str,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_session),
+    current_user: CatalogueAccount = Depends(get_current_catalogue_user),
+    db: AsyncSession = Depends(get_catalogue_session),
 ):
     """Delete a custom export template."""
-    membership = await require_org_role(current_user, db, {"owner", "admin", "editor"})
+    membership = await require_catalogue_role(current_user, db, {"owner", "admin", "editor"})
     org_id = str(membership.organization_id)
 
     if template_id in ("standard_ecommerce", "shopify", "woocommerce", "erp_inventory"):
         raise HTTPException(status_code=400, detail={"message": "Built-in templates cannot be deleted"})
 
-    deleted = delete_custom_template(org_id, template_id)
-    if not deleted:
+    result = await db.execute(delete(CatalogueSavedTemplate).where(
+        CatalogueSavedTemplate.workspace_id == membership.organization_id,
+        CatalogueSavedTemplate.template_id == template_id,
+    ))
+    delete_custom_template(org_id, template_id)
+    if not result.rowcount:
         raise HTTPException(status_code=404, detail={"message": "Template not found"})
     return {"status": "deleted", "template_id": template_id}
 
@@ -225,16 +280,22 @@ async def delete_template(
 @router.post("/export/preview", response_model=ExportPreviewResponse, status_code=status.HTTP_200_OK)
 async def preview_catalogue_export(
     body: ExportRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_session),
+    current_user: CatalogueAccount = Depends(get_current_catalogue_user),
+    db: AsyncSession = Depends(get_catalogue_session),
 ):
     """Preview export columns and sample mapped rows before downloading."""
-    org_id = str(getattr(current_user, "active_org_id", "default"))
+    org_id = str(current_user.active_workspace_id)
+    template = await _get_template(db, body.template_id, current_user.active_workspace_id)
+    products = body.products
+    if body.catalogue_id:
+        record = await _owned_catalogue_session(db, body.catalogue_id, current_user.active_workspace_id)
+        products = [ProductRecord.model_validate(product) for product in record.products]
     preview_data = generate_export_preview(
-        body.products,
+        products,
         template_id=body.template_id,
         file_format=body.format,
         org_id=org_id,
+        template_override=template,
     )
     return ExportPreviewResponse(**preview_data)
 
@@ -242,27 +303,33 @@ async def preview_catalogue_export(
 @router.post("/export", status_code=status.HTTP_200_OK)
 async def export_catalogue_file(
     body: ExportRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_session),
+    current_user: CatalogueAccount = Depends(get_current_catalogue_user),
+    db: AsyncSession = Depends(get_catalogue_session),
 ):
     """Generate and download genuine XLSX, CSV, or JSON product export."""
-    org_id = str(getattr(current_user, "active_org_id", "default"))
-    if not body.products:
+    org_id = str(current_user.active_workspace_id)
+    template = await _get_template(db, body.template_id, current_user.active_workspace_id)
+    products = body.products
+    if body.catalogue_id:
+        record = await _owned_catalogue_session(db, body.catalogue_id, current_user.active_workspace_id)
+        products = [ProductRecord.model_validate(product) for product in record.products]
+    if not products:
         raise HTTPException(status_code=400, detail={"message": "No product records to export"})
 
     file_bytes, filename, media_type = export_catalogue(
-        products=body.products,
+        products=products,
         template_id=body.template_id,
         file_format=body.format,
         custom_filename=body.custom_filename,
         org_id=org_id,
+        template_override=template,
     )
 
     encoded_filename = quote(filename)
     headers = {
         "Content-Disposition": f"attachment; filename=\"{filename}\"; filename*=UTF-8''{encoded_filename}",
         "Content-Length": str(len(file_bytes)),
-        "X-Record-Count": str(len(body.products)),
+        "X-Record-Count": str(len(products)),
     }
 
     return Response(

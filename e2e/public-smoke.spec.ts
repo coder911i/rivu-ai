@@ -13,5 +13,6 @@ test("homepage and services pages render and navigation works", async ({ page })
   await expect(catalogueLink).toBeVisible();
   await catalogueLink.click();
   await expect(page).toHaveURL(/\/our-solutions\/catalogue-data-entry$/);
-  await expect(page.getByRole("heading", { name: /Sign in to prepare a catalogue/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Sign in to your catalogue/i })).toBeVisible();
+  await expect(page.getByText(/separate from Rivu Data Refinery/i)).toBeVisible();
 });

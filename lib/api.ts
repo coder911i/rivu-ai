@@ -83,6 +83,47 @@ export async function authFetch(path: string, init: RequestInit = {}) {
   }
 }
 
+/** Authenticated API access for the separate Catalogue Portal identity realm. */
+export async function catalogueFetch(path: string, init: RequestInit = {}) {
+  const headers = new Headers(init.headers);
+  const access = typeof window !== "undefined" ? localStorage.getItem("catalogue_access_token") : null;
+  if (access) headers.set("Authorization", "Bearer " + access);
+  let response: Response;
+  try {
+    response = await fetch(API + path, { ...init, headers });
+  } catch {
+    throw new ApiRequestError("Unable to reach the Catalogue Portal API. Check its deployment and network connection.", 0, "network_error");
+  }
+  if (response.status !== 401 || typeof window === "undefined") return response;
+  const refresh = localStorage.getItem("catalogue_refresh_token");
+  if (!refresh) return response;
+  let refreshed: Response;
+  try {
+    refreshed = await fetch(API + "/catalogue/auth/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refresh }),
+    });
+  } catch {
+    return response;
+  }
+  if (!refreshed.ok) {
+    localStorage.removeItem("catalogue_access_token");
+    localStorage.removeItem("catalogue_refresh_token");
+    return response;
+  }
+  const data = await refreshed.json();
+  localStorage.setItem("catalogue_access_token", data.tokens.access_token);
+  localStorage.setItem("catalogue_refresh_token", data.tokens.refresh_token);
+  const retryHeaders = new Headers(init.headers);
+  retryHeaders.set("Authorization", "Bearer " + data.tokens.access_token);
+  try {
+    return await fetch(API + path, { ...init, headers: retryHeaders });
+  } catch {
+    throw new ApiRequestError("The Catalogue Portal API could not be reached after refreshing the session.", 0, "network_error");
+  }
+}
+
 export async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await authFetch(path, init);
   if (!response.ok) throw await parseError(response);

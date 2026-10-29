@@ -13,6 +13,7 @@ from app.core.config import settings
 from app.core.database import close_db, init_db
 from app.core.logging import configure_logging
 from app.api.v1.router import api_router
+from app.catalogue.auth_db import close_catalogue_db, init_catalogue_db
 
 configure_logging()
 logger = structlog.get_logger(__name__)
@@ -23,8 +24,10 @@ async def lifespan(app: FastAPI):
     logger.info("rivu_starting", version=settings.APP_VERSION, env=settings.APP_ENV)
     await init_db()
     logger.info("database_connected")
+    await init_catalogue_db()
     yield
     await close_db()
+    await close_catalogue_db()
     logger.info("rivu_shutdown")
 
 

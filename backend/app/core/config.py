@@ -24,6 +24,10 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str = "postgresql+asyncpg://rivu:rivu_dev_password@localhost:5432/rivu"
     DATABASE_URL_SYNC: str = "postgresql://rivu:rivu_dev_password@localhost:5432/rivu"
+    # The Catalogue Portal is a separate application data boundary with its own database and JWT key.
+    CATALOGUE_DATABASE_URL: Optional[str] = None
+    CATALOGUE_JWT_SECRET: Optional[str] = None
+    CATALOGUE_AUTO_CREATE_SCHEMA: bool = False
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
     DB_POOL_TIMEOUT: int = 30
@@ -117,6 +121,11 @@ class Settings(BaseSettings):
                 raise RuntimeError("S3_ENDPOINT must use HTTPS in production")
             if self.S3_ACCESS_KEY in {"", "minioadmin"} or self.S3_SECRET_KEY in {"", "minioadmin"}:
                 raise RuntimeError("Production S3 credentials must not use development defaults")
+            if self.CATALOGUE_DATABASE_URL:
+                if not self.CATALOGUE_JWT_SECRET or len(self.CATALOGUE_JWT_SECRET) < 32:
+                    raise RuntimeError("CATALOGUE_JWT_SECRET must be a long random secret when the Catalogue Portal is enabled")
+                if self.CATALOGUE_AUTO_CREATE_SCHEMA:
+                    raise RuntimeError("CATALOGUE_AUTO_CREATE_SCHEMA must be false in production; run its schema setup script")
 
 
 @lru_cache()

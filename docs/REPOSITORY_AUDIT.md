@@ -9,7 +9,7 @@
 
 Rivu is a Next.js 16 / React 19 TypeScript application backed by a FastAPI service. The existing product is an authenticated, organization-scoped data refinery: users upload datasets into projects, inspect profiles and quality, request AI transformation suggestions, preview them, approve execution, and download versioned output artifacts. The catalogue backend was already implemented and mounted at `/api/v1/catalogue`; the main missing piece was an interactive frontend. A new authenticated Catalogue Data Entry workflow now connects to those existing endpoints.
 
-The application persists user, organization, membership, project, dataset, profile, quality, job, and transformation records in SQLAlchemy/PostgreSQL. Raw/refined dataset objects use the configured S3-compatible storage. Catalogue upload/mapping sessions and custom catalogue templates are currently stateless/in-memory: they are not durable across requests when requests reach different workers (for templates) or across browser sessions (for source records). Catalogue source rows are returned to the browser and sent back for mapping, validation, and export.
+The application persists user, organization, membership, project, dataset, profile, quality, job, and transformation records in the Rivu SQLAlchemy/PostgreSQL database. Raw/refined dataset objects use configured S3-compatible storage. Catalogue Portal uses separate account/workspace tables, a separate SQLAlchemy engine/database URL, and an independent JWT signing key. Uploaded rows, mappings, products, and custom templates persist in that Catalogue database and are workspace-scoped. The Catalogue database must be separately provisioned and initialized; until then, Catalogue API calls return a setup-required 503.
 
 ## Frontend routes and actions
 
@@ -54,19 +54,19 @@ The general ingestion parser additionally supports Parquet, but catalogue produc
 - Catalogue upload previously returned only ten sample rows, making complete mapping impossible. Upload now returns all parsed records, and the catalogue UI maps those rows instead of the sample.
 - Mapping previously substituted synthetic product names and SKUs for missing source values. Those substitutions are removed so required-field validation can report missing values.
 - The catalogue table edits canonical product fields locally and sends all records to the real validation endpoint on explicit revalidation. The export preview excludes rows classified as errors; warning/valid rows are included.
-- Custom target-template files can be parsed and their headers saved as an organization-associated custom template. Current template storage is process-local, so this is a convenience for the current backend process, not durable configuration.
+- Custom target-template files can be parsed and their headers saved as workspace-owned templates in the separate Catalogue database.
 - Existing `/services` accepts CSV/JSON/XLSX/XLS/Parquet; it is the data refinery and remains distinct from catalogue-specific PDF support.
 - No native Shopify, WooCommerce, ERP API, OCR, saved mapping recipe, or durable catalogue job/session integration was found.
 
 ## Data, authentication, tenancy, and security
 
 - SQLAlchemy models are in `backend/app/models/`; schema changes are maintained in `backend/alembic/versions/`, with `db/schema.sql` as reference material.
-- Membership roles include owner, admin, editor, and viewer. Catalogue upload, mapping, validation, and enrichment use `require_org_role` for owner/admin/editor. Template listing and export routes require an authenticated user and use their active organization for custom-template lookup.
-- Catalogue APIs do not persist product records. Submitted rows are caller-provided request data; this is a transient workflow, not an organization database catalogue.
+- Rivu organization membership roles include owner, admin, editor, and viewer. Catalogue has a separate account/workspace owner identity realm and its own JWT auth dependency; catalogue routes do not accept Rivu Data Refinery tokens.
+- Catalogue APIs persist sessions and product records in the isolated Catalogue database. Session and template access is scoped to the signed-in Catalogue workspace.
 - Catalogue upload validates extension, rejects empty files, and reads in bounded chunks up to configured `MAX_UPLOAD_SIZE_MB` (default 500 MB). Parsing still requires the complete byte buffer and dataframe in memory; returning all rows as JSON also makes large catalogues memory- and bandwidth-intensive. A streaming/persistent catalogue session is needed for genuinely large inputs.
 - Parser failures represented as validation errors return 400. Unexpected catalogue parser failures are logged and return a generic message instead of echoing exception details. Existing global development error behavior still returns detail when `DEBUG` is enabled.
 - CSV/XLSX/JSON export is generated in memory. There is no persistent catalogue export artifact or background job.
-- `backend/app/core/security.py` implements JWT/password and organization access; production security checks require non-default JWT and S3 configuration, TLS, disabled debug, and disabled automatic schema creation.
+- `backend/app/core/security.py` implements Rivu JWT/password and organization access. `backend/app/catalogue/auth.py` signs Catalogue JWTs with the separate `CATALOGUE_JWT_SECRET`. Production security checks require non-default JWT and S3 configuration, TLS, disabled debug, and disabled automatic schema creation.
 
 ## Environment and deployment
 

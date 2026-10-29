@@ -6,19 +6,26 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
-from app.core.database import get_session
-from app.core.security import get_current_user, require_org_role
-from app.models.user import User
-from app.models.organization import Membership
+from app.catalogue.auth import get_current_catalogue_user
+from app.catalogue.auth_db import get_catalogue_session
 
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 async def dummy_session():
     mock_session = AsyncMock()
+    class EmptyResult:
+        def scalar_one_or_none(self):
+            return None
+        def scalars(self):
+            return self
+        def all(self):
+            return []
+    mock_session.execute = AsyncMock(return_value=EmptyResult())
+    mock_session.add = Mock()
     yield mock_session
 
-app.dependency_overrides[get_session] = dummy_session
+app.dependency_overrides[get_catalogue_session] = dummy_session
 
 
 class MockUser:
@@ -27,6 +34,7 @@ class MockUser:
     username = "merchandiser"
     status = "active"
     active_org_id = uuid.uuid4()
+    active_workspace_id = active_org_id
 
 
 class MockMembership:
@@ -54,11 +62,11 @@ async def test_catalogue_unauthenticated_access_blocked():
 
 @pytest.mark.asyncio
 async def test_catalogue_upload_and_mapping_pipeline(monkeypatch):
-    async def mock_require_org_role(user, db, roles):
+    async def mock_require_catalogue_role(user, db, roles):
         return MockMembership()
 
-    monkeypatch.setattr("app.catalogue.router.require_org_role", mock_require_org_role)
-    app.dependency_overrides[get_current_user] = lambda: MockUser()
+    monkeypatch.setattr("app.catalogue.router.require_catalogue_role", mock_require_catalogue_role)
+    app.dependency_overrides[get_current_catalogue_user] = lambda: MockUser()
 
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -141,5 +149,4 @@ async def test_catalogue_upload_and_mapping_pipeline(monkeypatch):
             assert "WDG-001" in exp_csv_res.text
             assert "WDG-012" in exp_csv_res.text
     finally:
-        app.dependency_overrides.pop(get_current_user, None)
-        app.dependency_overrides.pop(require_org_role, None)
+        app.dependency_overrides.pop(get_current_catalogue_user, None)

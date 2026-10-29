@@ -93,7 +93,7 @@ class IngestionUploadResponse(BaseModel):
     selected_sheet: Optional[str] = None
     total_pages: Optional[int] = None
     sample_records: List[Dict[str, Any]] = Field(default_factory=list)
-    # Kept client-side for review and mapping; upload is a stateless catalogue session.
+    # Returned for efficient client-side editing; the server also persists an owner-scoped session.
     raw_records: List[Dict[str, Any]] = Field(default_factory=list)
     suggested_mappings: List[FieldMapping] = Field(default_factory=list)
     available_templates: List[ProductTemplate] = Field(default_factory=list)
@@ -103,6 +103,7 @@ class ApplyMappingRequest(BaseModel):
     raw_records: List[Dict[str, Any]]
     mappings: List[FieldMapping]
     template_id: Optional[str] = "standard_ecommerce"
+    catalogue_id: Optional[str] = None
 
 
 class ApplyMappingResponse(BaseModel):
@@ -113,6 +114,7 @@ class ApplyMappingResponse(BaseModel):
 class ValidateProductsRequest(BaseModel):
     products: List[ProductRecord]
     template_id: Optional[str] = "standard_ecommerce"
+    catalogue_id: Optional[str] = None
 
 
 class AIEnrichmentRequest(BaseModel):
@@ -141,6 +143,7 @@ class ExportRequest(BaseModel):
     template_id: str = "standard_ecommerce"
     format: str = "xlsx"  # xlsx, csv, json
     custom_filename: Optional[str] = None
+    catalogue_id: Optional[str] = None
 
 
 class ExportPreviewResponse(BaseModel):

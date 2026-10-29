@@ -20,9 +20,10 @@ def export_catalogue(
     file_format: str = "xlsx",
     custom_filename: str | None = None,
     org_id: str = "default",
+    template_override: ProductTemplate | None = None,
 ) -> Tuple[bytes, str, str]:
     """Export product records in the specified format formatted to the target template schema."""
-    template = get_template_by_id(template_id, org_id=org_id)
+    template = template_override or get_template_by_id(template_id, org_id=org_id)
     if not template:
         template = get_template_by_id("standard_ecommerce")
 
@@ -98,9 +99,10 @@ def generate_export_preview(
     template_id: str = "standard_ecommerce",
     file_format: str = "xlsx",
     org_id: str = "default",
+    template_override: ProductTemplate | None = None,
 ) -> Dict[str, Any]:
     """Generate a lightweight preview of the export without building the full binary file."""
-    template = get_template_by_id(template_id, org_id=org_id)
+    template = template_override or get_template_by_id(template_id, org_id=org_id)
     if not template:
         template = get_template_by_id("standard_ecommerce")
 

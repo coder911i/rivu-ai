@@ -19,6 +19,23 @@ services:
       timeout: 5s
       retries: 5
 
+  catalogue-postgres:
+    image: postgres:16-alpine
+    container_name: rivu_catalogue_postgres
+    environment:
+      POSTGRES_USER: rivu_catalogue
+      POSTGRES_PASSWORD: ${CATALOGUE_POSTGRES_PASSWORD:?Set CATALOGUE_POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: rivu_catalogue
+    ports:
+      - "5433:5432"
+    volumes:
+      - catalogue_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rivu_catalogue"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   minio:
     image: cgr.dev/chainguard/minio:latest
     container_name: rivu_minio
@@ -52,4 +69,5 @@ services:
 
 volumes:
   postgres_data:
+  catalogue_postgres_data:
   minio_data:
