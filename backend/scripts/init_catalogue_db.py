@@ -5,6 +5,14 @@ Run once after provisioning the catalogue database:
 """
 
 import asyncio
+import sys
+from pathlib import Path
+
+# Allow `python scripts/init_catalogue_db.py` from the backend directory to
+# import the sibling `app` package, as documented for local setup.
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
 
 from sqlalchemy.ext.asyncio import create_async_engine
 
