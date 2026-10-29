@@ -107,7 +107,13 @@ class Settings(BaseSettings):
 
     @property
     def ALLOWED_ORIGINS_LIST(self) -> list[str]:
-        return [item.strip() for item in self.ALLOWED_ORIGINS.split(",") if item.strip()]
+        origins = [item.strip() for item in self.ALLOWED_ORIGINS.split(",") if item.strip()]
+        # Keep the current first-party Vercel origin reachable when a Render
+        # environment still has the previous deployment origin configured.
+        current_frontend = "https://rivu-ai-woad.vercel.app"
+        if current_frontend not in origins:
+            origins.append(current_frontend)
+        return origins
 
     @property
     def MAX_UPLOAD_SIZE_BYTES(self) -> int:
