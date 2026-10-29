@@ -28,7 +28,7 @@ services:
       - key: REQUIRE_EMAIL_VERIFICATION
         value: "false"
       - key: FRONTEND_URL
-        value: https://rivu-ai-murex.vercel.app
+        value: https://rivu-ai-woad.vercel.app
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT
@@ -46,7 +46,7 @@ services:
       - key: GROQ_MODEL
         value: llama-3.3-70b-versatile
       - key: ALLOWED_ORIGINS
-        sync: false
+        value: https://rivu-ai-woad.vercel.app,https://rivu-ai-murex.vercel.app,https://rivu.ai
       - key: S3_ENDPOINT
         sync: false
       - key: S3_ACCESS_KEY
