@@ -24,7 +24,7 @@ export const options = {
   },
 };
 
-export default function () {
+export default function apiBaseline() {
   const health = http.get(api.replace(/\/api\/v1$/, "") + "/health", { tags: { endpoint: "health" } });
   check(health, {
     "health endpoint returns 200": (r) => r.status === 200,

@@ -337,7 +337,7 @@ def _format_version(v: DatasetVersion) -> dict:
         "file_size_bytes": v.file_size_bytes,
         "row_count": v.row_count,
         "column_count": v.column_count,
-        "quality_score": float(v.quality_score) if v.quality_score else None,
-        "quality_delta": float(v.quality_delta) if v.quality_delta else None,
+        "quality_score": float(v.quality_score) if v.quality_score is not None else None,
+        "quality_delta": float(v.quality_delta) if v.quality_delta is not None else None,
         "created_at": v.created_at.isoformat(),
     }

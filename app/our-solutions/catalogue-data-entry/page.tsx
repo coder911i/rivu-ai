@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useMemo, useState } from "react";
+import { ChangeEvent, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { AlertCircle, ArrowLeft, Check, Download, FileSpreadsheet, FileUp, LoaderCircle, Search, ShieldCheck, WandSparkles, LogOut } from "lucide-react";
 import { API, catalogueFetch } from "../../../lib/api";
@@ -14,6 +14,19 @@ type UploadData = { catalogue_id: string; original_filename: string; file_format
 const TARGETS = ["ignore", "name", "sku", "barcode", "brand", "category", "subcategory", "description", "short_description", "price", "sale_price", "cost_price", "currency", "stock_quantity", "unit_of_measure", "weight", "dimensions", "color", "size", "material", "image_url", "tags", "seo_title", "seo_description"];
 const LABELS: Record<string, string> = { name: "Product name", sku: "SKU", barcode: "Barcode", brand: "Brand", category: "Category", subcategory: "Subcategory", description: "Description", short_description: "Short description", price: "Price", sale_price: "Sale price", cost_price: "Cost price", currency: "Currency", stock_quantity: "Stock", unit_of_measure: "Unit", weight: "Weight", dimensions: "Dimensions", color: "Color", size: "Size", material: "Material", image_url: "Image URL", tags: "Tags", seo_title: "SEO title", seo_description: "SEO description" };
 
+function subscribeCatalogueAuth(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener("catalogue-auth-changed", callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener("catalogue-auth-changed", callback);
+  };
+}
+
+function getCatalogueAuthSnapshot() {
+  return Boolean(window.localStorage.getItem("catalogue_access_token"));
+}
+
 async function readJson<T>(response: Response): Promise<T> {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -24,7 +37,7 @@ async function readJson<T>(response: Response): Promise<T> {
 }
 
 export default function CatalogueDataEntryPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const isAuthenticated = useSyncExternalStore(subscribeCatalogueAuth, getCatalogueAuthSnapshot, () => null);
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
@@ -58,7 +71,7 @@ export default function CatalogueDataEntryPage() {
       const data = await readJson<{ tokens: { access_token: string; refresh_token: string } }>(response);
       localStorage.setItem("catalogue_access_token", data.tokens.access_token);
       localStorage.setItem("catalogue_refresh_token", data.tokens.refresh_token);
-      setIsAuthenticated(true);
+      window.dispatchEvent(new Event("catalogue-auth-changed"));
     } catch (e) { setError(e instanceof Error ? e.message : "Catalogue Portal sign-in failed."); }
     finally { setBusy(false); }
   }
@@ -66,7 +79,7 @@ export default function CatalogueDataEntryPage() {
   async function signOut() {
     try { await catalogueFetch("/catalogue/auth/logout", { method: "POST" }); } catch {}
     localStorage.removeItem("catalogue_access_token"); localStorage.removeItem("catalogue_refresh_token");
-    setIsAuthenticated(false); setUpload(null); setProducts([]);
+    window.dispatchEvent(new Event("catalogue-auth-changed")); setUpload(null); setProducts([]);
   }
 
   const summary = useMemo(() => ({
@@ -82,12 +95,12 @@ export default function CatalogueDataEntryPage() {
   async function handleUpload(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
-    setSourceFile(file);
     setBusy(true); setError(""); setNotice(""); setPreview(null); setExported(""); setStage("Uploading and inspecting catalogue");
     try {
       const form = new FormData(); form.append("file", file);
       const parsed = await readJson<UploadData>(await catalogueFetch("/catalogue/upload", { method: "POST", body: form }));
       if (!parsed.raw_records?.length) throw new Error("The file was parsed but contained no product rows.");
+      setSourceFile(file);
       setUpload(parsed); setMappings(parsed.suggested_mappings); setTemplates(parsed.available_templates || []);
       setTemplateId(parsed.available_templates?.[0]?.id || "standard_ecommerce");
       setStage("Applying suggested field mappings");
@@ -173,7 +186,8 @@ export default function CatalogueDataEntryPage() {
     finally { setBusy(false); setStage(""); }
   }
 
-  if (!isAuthenticated && !(typeof window !== "undefined" && window.localStorage.getItem("catalogue_access_token"))) {
+  if (isAuthenticated === null) return <main className={styles.page}><section className={styles.auth}><p>Checking your Catalogue workspace…</p></section></main>;
+  if (!isAuthenticated) {
     return <main className={styles.page}><header className={styles.top}><Link href="/our-services"><ArrowLeft size={16}/> Our Services</Link><span>CATALOGUE PORTAL / SECURE ENTRY</span><span className={styles.secure}><ShieldCheck size={15}/> Separate workspace</span></header><section className={styles.signin}><ShieldCheck size={28}/><p className={styles.kicker}>STANDALONE CATALOGUE WORKSPACE</p><h1>{authMode === "login" ? "Sign in to your catalogue" : "Create your catalogue workspace"}</h1><p>This account and its catalogue data are separate from Rivu Data Refinery.</p><form className={styles.authForm} onSubmit={submitPortalAuth}>{authMode === "signup" && <><label>Full name<input required minLength={2} maxLength={200} value={displayName} onChange={e => setDisplayName(e.target.value)} autoComplete="name"/></label><label>Workspace name<input required minLength={2} maxLength={200} value={workspaceName} onChange={e => setWorkspaceName(e.target.value)} placeholder="Acme Product Catalog"/></label></>}<label>Email<input required type="email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} autoComplete="email"/></label><label>Password<input required type="password" minLength={authMode === "signup" ? 10 : 1} value={authPassword} onChange={e => setAuthPassword(e.target.value)} autoComplete={authMode === "signup" ? "new-password" : "current-password"}/></label>{error && <div className={styles.alert} role="alert">{error}</div>}<button disabled={busy}>{busy ? "Connecting…" : authMode === "login" ? "Sign in to Catalogue Portal" : "Create separate workspace"}</button></form><button className={styles.authToggle} onClick={() => { setError(""); setAuthMode(authMode === "login" ? "signup" : "login"); }}>{authMode === "login" ? "New here? Create a separate workspace" : "Already have a Catalogue Portal account? Sign in"}</button><p className={styles.authFootnote}>Separate catalogue login, JWT signing key, workspace records, and database.</p></section></main>;
   }
 

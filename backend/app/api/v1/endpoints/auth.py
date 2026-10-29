@@ -528,7 +528,7 @@ async def get_me(
     memberships = await db.execute(
         select(Membership, Organization)
         .join(Organization, Organization.id == Membership.organization_id)
-        .where(Membership.user_id == current_user.id)
+        .where(Membership.user_id == current_user.id, Membership.accepted_at.is_not(None))
     )
 
     orgs = [

@@ -25,7 +25,10 @@ def _validated_catalogue_database_url() -> str:
         raise RuntimeError("CATALOGUE_DATABASE_URL must use PostgreSQL with asyncpg")
     parsed = urlsplit(database_url)
     primary = urlsplit(_normalize_async_database_url(settings.DATABASE_URL))
-    if (parsed.hostname, parsed.port, parsed.path) == (primary.hostname, primary.port, primary.path):
+    # PostgreSQL defaults to port 5432. Treat an omitted port and an explicit
+    # :5432 as the same endpoint so a URL spelling difference cannot bypass
+    # the dedicated-database guard.
+    if (parsed.hostname, parsed.port or 5432, parsed.path) == (primary.hostname, primary.port or 5432, primary.path):
         raise RuntimeError("CATALOGUE_DATABASE_URL must point to a different database from DATABASE_URL")
     return database_url
 

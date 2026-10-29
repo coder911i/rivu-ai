@@ -62,8 +62,8 @@ export default function DatasetPage({params}:{params:Promise<{id:string}>}){
     return true;
   }catch(e){setError(e instanceof Error?e.message:"Unable to load dataset intelligence.");return false}
  }, [datasetId, router, loadReport]);
- async function loadTable(){if(!datasetId)return;setTableLoading(true);try{const qs=new URLSearchParams({offset:String(tablePage*50),limit:"50",search:tableSearch,sort:sortColumn,desc:String(sortDesc)});const r=await authFetch("/datasets/"+datasetId+"/preview?"+qs.toString(),{headers:authHeaders()});const d=await r.json().catch(()=>({}));if(r.ok)setTable(d);else setError(apiErrorMessage(d,"Dataset preview unavailable"));}catch(e){setError(e instanceof Error?e.message:"Dataset preview unavailable")}finally{setTableLoading(false)}}
- useEffect(()=>{if(profile) queueMicrotask(() => { void loadTable(); })},[profile,datasetId,tablePage,tableSearch,sortColumn,sortDesc]);
+ const loadTable=useCallback(async()=>{if(!datasetId)return;setTableLoading(true);try{const qs=new URLSearchParams({offset:String(tablePage*50),limit:"50",search:tableSearch,sort:sortColumn,desc:String(sortDesc)});const r=await authFetch("/datasets/"+datasetId+"/preview?"+qs.toString(),{headers:authHeaders()});const d=await r.json().catch(()=>({}));if(r.ok)setTable(d);else setError(apiErrorMessage(d,"Dataset preview unavailable"));}catch(e){setError(e instanceof Error?e.message:"Dataset preview unavailable")}finally{setTableLoading(false)}},[datasetId,tablePage,tableSearch,sortColumn,sortDesc]);
+ useEffect(()=>{if(!profile)return;const timer=window.setTimeout(()=>{void loadTable()},0);return()=>window.clearTimeout(timer)},[profile,loadTable]);
  useEffect(()=>{
   let cancelled=false;
   const poll=async()=>{

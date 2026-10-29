@@ -154,8 +154,13 @@ async def refresh_catalogue_tokens(body: CatalogueRefresh, db: AsyncSession) -> 
         workspace_id = uuid.UUID(payload["workspace_id"])
     except (KeyError, ValueError, TypeError) as exc:
         raise HTTPException(status_code=401, detail="Invalid Catalogue Portal token payload") from exc
-    account = await db.get(CatalogueAccount, account_id)
+    account = (await db.execute(
+        select(CatalogueAccount).where(CatalogueAccount.id == account_id).with_for_update()
+    )).scalar_one_or_none()
     workspace = await db.get(CatalogueWorkspace, workspace_id)
     if not account or not workspace or workspace.owner_id != account.id or payload.get("tv") != account.token_version:
         raise HTTPException(status_code=401, detail="Catalogue Portal session is no longer valid")
+    # Rotate under a row lock so concurrent reuse can only succeed once.
+    account.token_version += 1
+    await db.flush()
     return {"tokens": _tokens(account, workspace)}
